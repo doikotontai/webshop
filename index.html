@@ -70,12 +70,16 @@
 
                 <!-- Actions -->
                 <div class="flex items-center gap-3">
+                    <!-- Nút đăng nhập Admin -->
                     <button id="btn-admin-login" onclick="app.switchView('login')" class="hidden lg:flex items-center gap-2 px-4 py-2 rounded-full border border-gray-200 hover:border-primary hover:text-primary hover:bg-white transition-all text-sm font-bold text-gray-600">
                         <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span> Admin
                     </button>
-                    <button id="btn-logout" onclick="app.logout()" class="hidden items-center gap-2 px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-sm font-bold text-gray-700">
-                        Đăng xuất
+                    
+                    <!-- Nút Logout (Chỉ hiện khi đã đăng nhập Admin) -->
+                    <button id="btn-logout" onclick="app.handleLogout()" class="hidden items-center gap-2 px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-sm font-bold text-gray-700">
+                        <span class="material-symbols-outlined text-[20px]">logout</span> Đăng xuất
                     </button>
+                    
                     <a href="tel:0901234567" class="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-full font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-200/50">
                         <span class="material-symbols-outlined text-[20px]">call</span> 
                         <span class="hidden sm:inline">Liên hệ</span>
@@ -145,7 +149,7 @@
                 </div>
             </div>
 
-            <!-- VIEW: LOGIN (Đăng nhập Admin) -->
+            <!-- VIEW: LOGIN (Đăng nhập Admin Email/Pass) -->
             <div id="view-login" class="view-section hidden min-h-[calc(100vh-80px)] flex items-center justify-center bg-gray-50 p-4">
                 <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
                     <div class="flex justify-center mb-6">
@@ -154,14 +158,19 @@
                         </div>
                     </div>
                     <h2 class="text-2xl font-bold text-center text-gray-800 mb-2">Đăng nhập Quản lý</h2>
-                    <p class="text-center text-gray-500 text-sm mb-6">Nhập mã PIN để truy cập kho hàng</p>
+                    <p class="text-center text-gray-500 text-sm mb-6">Dành cho chủ cửa hàng</p>
                     
                     <form onsubmit="app.handleAdminLogin(event)" class="space-y-4">
                         <div>
-                            <input type="password" id="admin-pin" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-center tracking-widest text-lg" placeholder="••••••" autofocus required>
+                            <label class="block text-xs font-bold text-gray-700 mb-1 ml-1 uppercase">Email</label>
+                            <input type="email" id="admin-email" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" placeholder="admin@example.com" required>
                         </div>
-                        <p id="login-error" class="text-primary text-sm text-center font-medium hidden">Mã PIN không đúng</p>
-                        <button type="submit" class="w-full bg-primary text-white font-bold py-3 rounded-lg hover:bg-red-700 transition-all shadow-lg shadow-red-200">Vào hệ thống</button>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1 ml-1 uppercase">Mật khẩu</label>
+                            <input type="password" id="admin-password" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" placeholder="••••••••" required>
+                        </div>
+                        <p id="login-error" class="text-primary text-sm text-center font-medium hidden">Sai email hoặc mật khẩu</p>
+                        <button type="submit" id="btn-submit-login" class="w-full bg-primary text-white font-bold py-3 rounded-lg hover:bg-red-700 transition-all shadow-lg shadow-red-200">Đăng nhập</button>
                         <button type="button" onclick="app.switchView('home')" class="w-full text-gray-500 text-sm py-2 hover:text-gray-800">Quay lại trang chủ</button>
                     </form>
                 </div>
@@ -172,11 +181,17 @@
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                     <div>
                         <h2 class="text-2xl font-bold text-gray-900">Quản lý Kho Hàng</h2>
-                        <p class="text-gray-500 text-sm mt-1">Thêm, sửa, xóa sản phẩm của bạn</p>
+                        <p class="text-gray-500 text-sm mt-1">Xin chào Admin!</p>
+                        <p class="text-xs text-gray-400 font-mono mt-1" id="admin-uid-display">UID: Đang tải...</p>
                     </div>
-                    <button onclick="app.openModal()" class="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition-all">
-                        <span class="material-symbols-outlined">add</span> Thêm món mới
-                    </button>
+                    <div class="flex gap-2">
+                        <button onclick="app.checkAdminStatus()" class="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2.5 rounded-lg font-bold hover:bg-gray-200 transition-all border border-gray-300">
+                            <span class="material-symbols-outlined">verified_user</span> Kiểm tra Quyền
+                        </button>
+                        <button onclick="app.openModal()" class="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition-all">
+                            <span class="material-symbols-outlined">add</span> Thêm món mới
+                        </button>
+                    </div>
                 </div>
 
                 <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -272,44 +287,36 @@
     <script type="module">
         // Import Firebase từ CDN
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
         // ==========================================
-        // CẤU HÌNH FIREBASE (Dán của bạn vào đây nếu cần)
+        // CẤU HÌNH FIREBASE
         // ==========================================
         let firebaseConfig;
-        let appId = 'japan-mart-js';
+        let adminUID = '3bO3pP9xVHS8Oe6zhHiIm0SK9Eh1'; // UID Admin của bạn
 
         if (typeof __firebase_config !== 'undefined') {
-            // Cấu hình tự động trong môi trường Chat
             firebaseConfig = JSON.parse(__firebase_config);
-            appId = typeof __app_id !== 'undefined' ? __app_id : 'japan-mart-default';
         } else {
-            // Cấu hình cho web của bạn (Thay thế khi chạy thật)
+            // Config của bạn
             firebaseConfig = {
-                apiKey: "API_KEY_CUA_BAN",
-                authDomain: "PROJECT_ID.firebaseapp.com",
-                projectId: "PROJECT_ID",
-                storageBucket: "PROJECT_ID.appspot.com",
-                messagingSenderId: "SENDER_ID",
-                appId: "APP_ID"
+                apiKey: "AIzaSyDBdfswGWEefQR8Djscm2hkaKsi0438ODQ",
+                authDomain: "webshop-japan.firebaseapp.com",
+                projectId: "webshop-japan",
+                storageBucket: "webshop-japan.firebasestorage.app",
+                messagingSenderId: "854451712478",
+                appId: "1:854451712478:web:d55198786d10a9b98d2d4f",
+                measurementId: "G-LGWDL5HTYZ"
             };
-            appId = 'my-js-shop';
         }
 
-        // Khởi tạo
         const fbApp = initializeApp(firebaseConfig);
         const auth = getAuth(fbApp);
         const db = getFirestore(fbApp);
         
-        // Đường dẫn Collection
-        const getCollection = () => {
-             if (typeof __firebase_config !== 'undefined') {
-                return collection(db, 'artifacts', appId, 'public', 'data', 'products');
-             }
-             return collection(db, 'products');
-        };
+        // Đường dẫn Collection đã được sửa thành 'products' (khớp với Rules của bạn)
+        const getCollection = () => collection(db, 'products');
 
         // ==========================================
         // APP LOGIC
@@ -323,61 +330,102 @@
         };
 
         const app = {
-            // --- Init ---
             init: async () => {
-                // Auth Listener
+                // Lắng nghe trạng thái đăng nhập
                 onAuthStateChanged(auth, (user) => {
                     state.user = user;
+                    app.listenData(); // Luôn lắng nghe dữ liệu
+                    
                     if (user) {
-                        app.listenData();
+                        if (user.uid === adminUID) {
+                            app.switchView('admin');
+                            document.getElementById('admin-uid-display').textContent = `UID: ${user.uid}`;
+                        } else {
+                            app.switchView('home');
+                        }
                     } else {
-                        app.loginAnonymously();
+                        app.switchView('home');
                     }
                 });
                 
-                // Render UI Init
                 app.renderCategories();
-                app.switchView('home');
             },
 
-            // --- Auth ---
-            loginAnonymously: async () => {
+            // --- TEST ADMIN FUNCTION (Chức năng kiểm tra lỗi) ---
+            checkAdminStatus: async () => {
+                if (!state.user) {
+                    alert("Bạn chưa đăng nhập!");
+                    return;
+                }
+                
+                const uid = state.user.uid;
+                const message = `UID Của bạn: ${uid}\n\nĐang kiểm tra dữ liệu trên Firebase...`;
+                console.log("Checking admin for UID:", uid);
+                
                 try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                         await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                         await signInAnonymously(auth);
-                    }
-                } catch (e) { console.error("Login fail", e); }
-            },
+                    // Thử đọc document trong collection admins
+                    const docRef = doc(db, 'admins', uid);
+                    const docSnap = await getDoc(docRef);
 
-            handleAdminLogin: (e) => {
-                e.preventDefault();
-                const pin = document.getElementById('admin-pin').value;
-                if (pin === '123456') { // PIN MẶC ĐỊNH
-                    document.getElementById('login-error').classList.add('hidden');
-                    app.switchView('admin');
-                    document.getElementById('admin-pin').value = ''; // Clear pin
-                } else {
-                    document.getElementById('login-error').classList.remove('hidden');
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        if (data.active === true) {
+                            alert(`✅ CẤU HÌNH THÀNH CÔNG!\n\n- Đã tìm thấy document trong collection 'admins'.\n- Trạng thái active: TRUE.\n\nBạn có thể thêm/sửa/xóa sản phẩm.`);
+                        } else {
+                            alert(`⚠️ TÌM THẤY NHƯNG CHƯA KÍCH HOẠT\n\n- Đã tìm thấy document trong 'admins'.\n- NHƯNG active đang là: ${data.active}.\n\n-> Hãy vào Firebase sửa active thành true.`);
+                        }
+                    } else {
+                        alert(`❌ LỖI: CHƯA TẠO DỮ LIỆU ADMIN\n\nFirebase không tìm thấy document ID: ${uid} trong collection 'admins'.\n\n-> Hãy vào Firestore tạo collection 'admins', tạo document với ID trên, và thêm field active: true.`);
+                    }
+                } catch (error) {
+                    if (error.code === 'permission-denied') {
+                        alert(`❌ LỖI QUYỀN (PERMISSION DENIED)\n\nQuy tắc bảo mật (Rules) đang chặn bạn đọc bảng 'admins'.\n\nHãy kiểm tra lại Rules trong Firebase Console. Rule cho admins phải cho phép 'read' nếu uid khớp.`);
+                    } else {
+                        alert(`❌ LỖI KHÁC: ${error.message}`);
+                    }
                 }
             },
 
-            logout: () => {
-                app.switchView('home');
+            // --- Auth Login (Mail/Pass) ---
+            handleAdminLogin: async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('admin-email').value;
+                const password = document.getElementById('admin-password').value;
+                const btn = document.getElementById('btn-submit-login');
+                const err = document.getElementById('login-error');
+
+                try {
+                    btn.disabled = true;
+                    btn.textContent = "Đang xử lý...";
+                    err.classList.add('hidden');
+                    
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    console.error(error);
+                    err.textContent = "Đăng nhập thất bại: " + error.message;
+                    err.classList.remove('hidden');
+                    btn.disabled = false;
+                    btn.textContent = "Đăng nhập";
+                }
+            },
+
+            handleLogout: async () => {
+                await signOut(auth);
             },
 
             // --- Data ---
             listenData: () => {
                 document.getElementById('loading-spinner').classList.remove('hidden');
+                
                 onSnapshot(getCollection(), (snapshot) => {
                     state.products = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
-                    // Sort by newest
                     state.products.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
                     
                     document.getElementById('loading-spinner').classList.add('hidden');
                     app.renderProducts();
                     app.renderAdminTable();
+                }, (error) => {
+                    console.error("Lỗi tải dữ liệu:", error);
                 });
             },
 
@@ -397,69 +445,70 @@
                 try {
                     const col = getCollection();
                     if (id) {
-                        // Update - Cần xử lý đường dẫn doc chính xác
-                        let docRef;
-                        if (typeof __firebase_config !== 'undefined') {
-                             docRef = doc(db, 'artifacts', appId, 'public', 'data', 'products', id);
-                        } else {
-                             docRef = doc(db, 'products', id);
-                        }
-                        await updateDoc(docRef, { ...data, updatedAt: Date.now() });
+                        await updateDoc(doc(db, 'products', id), { ...data, updatedAt: Date.now() });
                     } else {
-                        // Add
                         await addDoc(col, { ...data, createdAt: Date.now() });
                     }
                     app.closeModal();
                 } catch (error) {
-                    alert("Lỗi: " + error.message);
+                    console.error(error);
+                    // Thông báo lỗi chi tiết hơn
+                    if (error.code === 'permission-denied') {
+                        alert("KHÔNG LƯU ĐƯỢC: LỖI QUYỀN (Permission Denied).\n\nHệ thống Rules không cho phép bạn ghi dữ liệu. Hãy bấm nút 'Kiểm tra Quyền' để xem chi tiết.");
+                    } else {
+                        alert("Lỗi lưu: " + error.message);
+                    }
                 }
             },
 
             deleteProduct: async (id) => {
                 if (!confirm("Chắc chắn xóa?")) return;
                 try {
-                    let docRef;
-                     if (typeof __firebase_config !== 'undefined') {
-                         docRef = doc(db, 'artifacts', appId, 'public', 'data', 'products', id);
-                     } else {
-                         docRef = doc(db, 'products', id);
-                     }
-                    await deleteDoc(docRef);
-                } catch (e) { alert("Lỗi xóa: " + e.message); }
+                    await deleteDoc(doc(db, 'products', id));
+                } catch (e) { 
+                    if (e.code === 'permission-denied') {
+                         alert("Lỗi xóa: Bạn không có quyền xóa (Permission Denied).");
+                    } else {
+                         alert("Lỗi xóa: " + e.message); 
+                    }
+                }
             },
 
-            // --- UI ---
+            // --- UI Helper ---
             switchView: (viewName) => {
-                // Hide all
                 document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-                
-                // Show requested
                 document.getElementById(`view-${viewName}`).classList.remove('hidden');
                 
-                // Update header buttons
                 const btnAdmin = document.getElementById('btn-admin-login');
                 const btnLogout = document.getElementById('btn-logout');
                 const searchBox = document.getElementById('search-container');
                 const mobileSearch = document.getElementById('mobile-search');
 
-                if (viewName === 'home') {
-                    btnAdmin.classList.remove('hidden');
-                    btnAdmin.classList.add('lg:flex');
-                    btnLogout.classList.add('hidden');
-                    btnLogout.classList.remove('flex');
-                    searchBox.classList.remove('hidden');
-                    searchBox.classList.add('hidden', 'md:block');
-                    mobileSearch.classList.remove('hidden');
-                } else if (viewName === 'admin') {
+                if (viewName === 'admin') {
                     btnAdmin.classList.add('hidden');
                     btnAdmin.classList.remove('lg:flex');
                     btnLogout.classList.remove('hidden');
                     btnLogout.classList.add('flex');
-                    searchBox.classList.add('hidden'); // Hide search in admin
+                    searchBox.classList.add('hidden');
                     mobileSearch.classList.add('hidden');
                 } else if (viewName === 'login') {
                     searchBox.classList.add('hidden');
                     mobileSearch.classList.add('hidden');
+                } else {
+                    if (state.user && state.user.uid === adminUID) {
+                        btnAdmin.classList.add('hidden');
+                        btnAdmin.classList.remove('lg:flex');
+                        btnLogout.classList.remove('hidden');
+                        btnLogout.classList.add('flex');
+                    } else {
+                        btnAdmin.classList.remove('hidden');
+                        btnAdmin.classList.add('lg:flex');
+                        btnLogout.classList.add('hidden');
+                        btnLogout.classList.remove('flex');
+                    }
+                    searchBox.classList.remove('hidden');
+                    searchBox.classList.add('hidden', 'md:block');
+                    mobileSearch.classList.remove('hidden');
                 }
                 
                 window.scrollTo(0,0);
@@ -473,7 +522,7 @@
             setCategory: (cat) => {
                 state.category = cat;
                 document.getElementById('current-category-title').textContent = cat;
-                app.renderCategories(); // Re-render to update active state
+                app.renderCategories();
                 app.renderProducts();
             },
 
@@ -556,7 +605,6 @@
                 `).join('');
             },
 
-            // --- Modal ---
             openModal: () => {
                 document.getElementById('product-form').reset();
                 document.getElementById('prod-id').value = '';
@@ -589,10 +637,7 @@
             }
         };
 
-        // Expose app to global window so HTML onclick works
         window.app = app;
-        
-        // Start
         app.init();
     </script>
 </body>
