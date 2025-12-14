@@ -379,34 +379,26 @@
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
 
         // CẤU HÌNH FIREBASE
-        // Lưu ý: Các key này là Public Identifier để web kết nối với Firebase, không phải mật khẩu server.
-        // Để bảo mật, hãy dùng Firestore Rules & App Check trong Firebase Console.
         
         let firebaseConfig;
         
-        // ID của Admin (Trong thực tế nên dùng Custom Claims hoặc lưu role trong Firestore)
-        // Đây chỉ là check phía client để hiển thị giao diện
+        // ID của Admin
         let adminUID = '3bO3pP9xVHS8Oe6zhHiIm0SK9Eh1'; 
 
         if (typeof __firebase_config !== 'undefined') {
             // Trường hợp chạy trong môi trường có biến môi trường sẵn (như Immersive Canvas)
             firebaseConfig = JSON.parse(__firebase_config);
         } else {
-            // [QUAN TRỌNG] NẾU CHẠY LOCALHOSE/DEPLOY RIÊNG:
-            // Hãy thay thế các giá trị bên dưới bằng thông tin từ Project Settings trong Firebase Console của bạn.
+            // KHÔI PHỤC CẤU HÌNH ĐỂ APP HOẠT ĐỘNG
             firebaseConfig = {
-                apiKey: "API_KEY_CUA_BAN", // Thay bằng API Key thật
-                authDomain: "PROJECT_ID.firebaseapp.com",
-                projectId: "PROJECT_ID",
-                storageBucket: "PROJECT_ID.appspot.com", 
-                messagingSenderId: "SENDER_ID",
-                appId: "APP_ID"
+                apiKey: "AIzaSyDBdfswGWEefQR8Djscm2hkaKsi0438ODQ",
+                authDomain: "webshop-japan.firebaseapp.com",
+                projectId: "webshop-japan",
+                storageBucket: "webshop-japan.appspot.com", 
+                messagingSenderId: "854451712478",
+                appId: "1:854451712478:web:d55198786d10a9b98d2d4f",
+                measurementId: "G-LGWDL5HTYZ"
             };
-            
-            // Cảnh báo nếu chưa điền config
-            if (firebaseConfig.apiKey === "API_KEY_CUA_BAN") {
-                console.error("⚠️ THIẾU CONFIG: Bạn cần điền thông tin Firebase vào file index.html để app hoạt động.");
-            }
         }
 
         const fbApp = initializeApp(firebaseConfig);
@@ -432,7 +424,6 @@
                     app.listenData();
                     if (user && user.uid === adminUID) {
                         app.switchView('admin');
-                        // Ẩn UID thật trên giao diện để tránh soi
                         document.getElementById('admin-uid-display').textContent = `Admin Mode`;
                     } else {
                         app.switchView('home');
