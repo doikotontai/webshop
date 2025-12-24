@@ -125,6 +125,9 @@
                     </div>
                     
                     <div class="flex items-center gap-2">
+                        <div id="lastImportTime" class="hidden text-xs text-right mr-2 text-slate-500 italic">
+                            <i class="far fa-clock mr-1"></i>Cập nhật: <span id="lastImportTimeVal" class="font-bold">--</span>
+                        </div>
                         <button id="btnImport" onclick="importModal.open()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm flex items-center transition">
                             <i class="fas fa-file-excel mr-2"></i> Import
                         </button>
@@ -480,6 +483,15 @@
                 if(dateStr.length === 8) return `${dateStr.substr(6,2)}/${dateStr.substr(4,2)}/${dateStr.substr(0,4)}`;
                 return dateStr;
             },
+            formatDateTime: (dateObj) => {
+                if(!dateObj) return '';
+                const d = new Date(dateObj);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                return `${hh}:${min} ${dd}/${mm}`;
+            },
             showToast: (msg, type = 'info') => {
                 const el = document.getElementById('toast');
                 const colors = type === 'error' ? 'bg-red-500' : 'bg-emerald-600';
@@ -666,19 +678,42 @@
 
             renderPlanTable: (people) => {
                 const container = document.getElementById('planContent');
+                const lastImportEl = document.getElementById('lastImportTime');
+                const lastImportVal = document.getElementById('lastImportTimeVal');
+
                 if (people.length === 0) {
                     container.innerHTML = `<div class="flex flex-col items-center justify-center h-64 text-slate-400">
                         <i class="fas fa-clipboard-list text-5xl mb-3 text-slate-200"></i>
                         <p class="text-sm">Chưa có dữ liệu. Vui lòng Import từ Excel.</p>
                     </div>`;
                     app.updateStats(0,0,0,0);
+                    lastImportEl.classList.add('hidden');
                     return;
                 }
 
+                // Calculate stats & last import
                 const total = people.length;
                 const offshore = people.filter(p => !p.isReturn).length;
                 const warningCount = people.filter(p => p.warnings && p.warnings.length > 0).length;
                 app.updateStats(total, total, 0, warningCount);
+
+                // Find latest createdAt
+                let maxDate = 0;
+                people.forEach(p => {
+                    if(p.createdAt && p.createdAt.seconds) {
+                        const ms = p.createdAt.seconds * 1000;
+                        if(ms > maxDate) maxDate = ms;
+                    } else if (p.createdAt instanceof Date) {
+                        if(p.createdAt.getTime() > maxDate) maxDate = p.createdAt.getTime();
+                    }
+                });
+                
+                if(maxDate > 0) {
+                    lastImportVal.innerText = utils.formatDateTime(new Date(maxDate));
+                    lastImportEl.classList.remove('hidden');
+                } else {
+                    lastImportEl.classList.add('hidden');
+                }
 
                 const grouped = people.reduce((acc, p) => {
                     const dest = p.destination || 'Chưa xác định';
@@ -715,18 +750,17 @@
                             <table class="min-w-full divide-y divide-slate-200 text-sm">
                                 <thead class="bg-slate-50">
                                     <tr>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b">STT</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b">Danh số</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b min-w-[150px]">Họ tên</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b">Chức danh</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b">Ngày sinh</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b">Nơi sinh</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b">SĐT</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b">CCCD / Hết hạn</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b">Kg</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b">Hành lý</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b">Hàng hóa</th>
-                                        <th class="px-3 py-3 text-center font-bold text-slate-600 border-b sticky right-0 bg-slate-50 shadow-l-sm">Xử lý</th>
+                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-10">STT</th>
+                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-20">Danh số</th>
+                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-40">Họ tên</th>
+                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-48">Chức danh / Đơn vị</th>
+                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-32">Ngày sinh / Nơi sinh</th>
+                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-24">SĐT</th>
+                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-32">CCCD / Hết hạn</th>
+                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-16">Cân nặng</th>
+                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-16">Hành lý</th>
+                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-16">Hàng hóa</th>
+                                        <th class="px-3 py-3 text-center font-bold text-slate-600 border-b sticky right-0 bg-slate-50 shadow-l-sm w-20">Xử lý</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-slate-100">
@@ -750,9 +784,14 @@
                                 <td class="px-3 py-2.5 text-slate-500 text-center">${idx + 1}</td>
                                 <td class="px-3 py-2.5 text-slate-800 font-mono text-xs">${p.staffNo}</td>
                                 <td class="px-3 py-2.5 font-semibold text-slate-800">${p.fullName}</td>
-                                <td class="px-3 py-2.5 text-slate-600">${p.title}</td>
-                                <td class="px-3 py-2.5 text-slate-600 whitespace-nowrap">${p.dob || '-'}</td>
-                                <td class="px-3 py-2.5 text-slate-600">${p.pob || '-'}</td>
+                                <td class="px-3 py-2.5 text-slate-600">
+                                    <div class="font-medium">${p.title || ''}</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">${p.orgName || '-'}</div>
+                                </td>
+                                <td class="px-3 py-2.5 text-slate-600">
+                                    <div class="whitespace-nowrap">${p.dob || '-'}</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">${p.pob || ''}</div>
+                                </td>
                                 <td class="px-3 py-2.5 text-slate-600 font-mono text-xs">${p.phone || '-'}</td>
                                 <td class="px-3 py-2.5 text-slate-600">
                                     ${p.idNo || '-'}<br/><span class="text-[10px] ${p.isIdExpiring ? 'text-red-600 font-bold' : 'text-slate-400'}">${p.idExpiryDate || ''}</span>${warningIcon}
@@ -896,7 +935,7 @@
             },
         };
         
-        // --- IMPORT LOGIC (NEWLY ADDED) ---
+        // --- IMPORT LOGIC ---
         const importModal = {
             parsedData: null,
             
@@ -976,16 +1015,13 @@
                             let task = '';
                             let headerRowIndex = -1;
                             
-                            // --- FIX: Get specific cells as requested ---
                             // 1) Ngày ĐK: B6 (Index: Row 5, Col 1)
                             if (rows[5] && rows[5][1]) {
                                 const val = rows[5][1].toString().trim();
-                                // Try standard date regex dd/mm/yyyy
                                 const dateMatch = val.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
                                 if (dateMatch) {
                                     date = `${dateMatch[1].padStart(2,'0')}/${dateMatch[2].padStart(2,'0')}/${dateMatch[3]}`;
                                 } else {
-                                    // Try extracting from text like "Ngày 24 tháng 12..."
                                     const textMatch = val.toLowerCase().match(/ngày\s*(\d{1,2})\s*tháng\s*(\d{1,2})\s*năm\s*(\d{4})/);
                                     if(textMatch) {
                                          date = `${textMatch[1].padStart(2,'0')}/${textMatch[2].padStart(2,'0')}/${textMatch[3]}`;
@@ -996,20 +1032,35 @@
                             // 2) Giàn (Nơi đến): B7 (Index: Row 6, Col 1)
                             if (rows[6] && rows[6][1]) {
                                 let val = rows[6][1].toString().trim();
-                                // FIX: Use substring to handle cases with multiple colons
                                 if(val.includes(':')) {
                                     val = val.substring(val.indexOf(':') + 1).trim();
                                 }
                                 destination = val;
                             }
 
-                            // 3) Nội dung công việc: B9 (Index: Row 8, Col 1)
+                            // 3) NVSX: B8 (Index: Row 7, Col 1)
+                            if (rows[7] && rows[7][1]) {
+                                let val = rows[7][1].toString().trim();
+                                // Regex matches pattern like 501-25 or 501-25BS1
+                                const matches = val.match(/\d{3}-\d{2}(?:BS\d+)?/gi);
+                                if (matches && matches.length > 0) {
+                                    // Join unique matches with separator
+                                    nvsx = [...new Set(matches)].join('; ');
+                                } else {
+                                    // Fallback if no pattern match but has colon
+                                    if(val.includes(':')) {
+                                        val = val.substring(val.indexOf(':') + 1).trim();
+                                    }
+                                    nvsx = val;
+                                }
+                            }
+
+                            // 4) Nội dung công việc: B9 (Index: Row 8, Col 1)
                             if (rows[8] && rows[8][1]) {
                                 let val = rows[8][1].toString().trim();
                                 
                                 // FIX: Remove prefix if present (e.g. "Công việc:")
                                 if(val.includes(':')) {
-                                    // Heuristic: if the part before colon is short (likely a label)
                                     const firstColon = val.indexOf(':');
                                     if (firstColon < 50) { 
                                         val = val.substring(firstColon + 1).trim();
@@ -1017,7 +1068,6 @@
                                 }
                                 
                                 // FIX: Auto-formatting for multiple lines
-                                // Split by newlines, filter empty lines
                                 const lines = val.split(/\r\n|\r|\n/).map(x => x.trim()).filter(x => x);
                                 if(lines.length > 1) {
                                     task = lines.map((line, idx) => `${idx+1}) ${line}`).join('\n');
@@ -1026,19 +1076,11 @@
                                 }
                             }
                             
-                            // Scan for Header and NVSX (since NVSX wasn't specified fixed)
+                            // Scan for Header
                             for(let i=0; i < Math.min(rows.length, 25); i++) {
                                 const rowStr = rows[i].join(' ').toLowerCase();
-                                
-                                // Detect Header Row
                                 if(rowStr.includes('stt') && (rowStr.includes('họ và tên') || rowStr.includes('họ tên'))) {
                                     headerRowIndex = i;
-                                }
-
-                                // Meta Extraction (Fallback/NVSX)
-                                if((rowStr.includes('nhiệm vụ') || rowStr.includes('nvsx')) && !nvsx) {
-                                     const parts = rowStr.split(/[:;]/);
-                                     if(parts.length > 1) nvsx = parts[1].trim().toUpperCase();
                                 }
                             }
                             
@@ -1052,11 +1094,12 @@
                                 staffNo: headers.findIndex(h => h.includes('danh số') || h.includes('msnv')),
                                 fullName: headers.findIndex(h => h.includes('họ và tên') || h.includes('họ tên')),
                                 title: headers.findIndex(h => h.includes('chức danh')),
+                                org: headers.findIndex(h => h.includes('đơn vị') || h.includes('xưởng') || h.includes('bộ phận') || h.includes('công ty')), // Add Org Mapping
                                 dob: headers.findIndex(h => h.includes('sinh')),
                                 pob: headers.findIndex(h => h.includes('nơi sinh')),
                                 phone: headers.findIndex(h => h.includes('sđt') || h.includes('điện thoại')),
                                 idNo: headers.findIndex(h => h.includes('cccd') || h.includes('cmnd')),
-                                idExpiry: headers.findIndex(h => h.includes('hết hạn') || h.includes('ngày cấp')), // Sometimes merged
+                                idExpiry: headers.findIndex(h => h.includes('hết hạn') || h.includes('ngày cấp')), 
                                 weight: headers.findIndex(h => h.includes('kg') || h.includes('trọng lượng') || h.includes('cân nặng')),
                                 luggage: headers.findIndex(h => h.includes('hành lý')),
                                 cargo: headers.findIndex(h => h.includes('hàng hóa') || h.includes('vật tư'))
@@ -1067,7 +1110,6 @@
                             const people = [];
                             for(let i = headerRowIndex + 1; i < rows.length; i++) {
                                 const row = rows[i];
-                                // Skip empty rows or footer rows
                                 if(!row || row.length < 2 || !row[colMap.fullName]) continue;
                                 const name = row[colMap.fullName].toString().trim();
                                 if(!name || name.toLowerCase().includes('tổng cộng') || name.toLowerCase().includes('người lập')) continue;
@@ -1076,6 +1118,7 @@
                                     fullName: name,
                                     staffNo: colMap.staffNo > -1 ? utils.cleanString(row[colMap.staffNo]) : '',
                                     title: colMap.title > -1 ? utils.cleanString(row[colMap.title]) : '',
+                                    orgName: colMap.org > -1 ? utils.cleanString(row[colMap.org]) : '', // Extract Org from Excel if available
                                     dob: colMap.dob > -1 ? utils.cleanString(row[colMap.dob]) : '',
                                     pob: colMap.pob > -1 ? utils.cleanString(row[colMap.pob]) : '',
                                     phone: colMap.phone > -1 ? utils.cleanString(row[colMap.phone]) : '',
@@ -1102,24 +1145,21 @@
                 
                 utils.toggleLoader(true, 'Đang lưu vào hệ thống...');
                 
-                // Determine Org
-                let targetOrgId = state.userOrgId;
-                let targetOrgName = state.userOrgId;
+                // Determine Default Org from Context (if Excel doesn't have it)
+                let defaultOrgId = state.userOrgId;
+                let defaultOrgName = state.userOrgId;
                 
                 if(state.userRole === 'dispatcher') {
                     const sel = document.getElementById('importOrgSelect');
-                    targetOrgId = sel.value;
-                    targetOrgName = sel.options[sel.selectedIndex].text;
+                    defaultOrgId = sel.value;
+                    defaultOrgName = sel.options[sel.selectedIndex].text;
                 } else {
-                    // Find name for current user org
-                    const found = state.orgs.find(o => o.id === targetOrgId);
-                    if(found) targetOrgName = found.name;
+                    const found = state.orgs.find(o => o.id === defaultOrgId);
+                    if(found) defaultOrgName = found.name;
                 }
 
                 const { date, destination, nvsx, task, people } = importModal.parsedData;
                 
-                // Use selected date from Dashboard, ignore Excel date if needed, or use logic
-                // Here we simply use the currently selected dashboard date
                 const dateKey = state.currentDateKey;
                 
                 try {
@@ -1128,7 +1168,6 @@
                         .collection('dailyPlans').doc(dateKey)
                         .collection('people');
 
-                    // If it's a new date, ensure the dailyPlan doc exists
                     const planRef = db.collection('artifacts').doc(appId).collection('dailyPlans').doc(dateKey);
                     batch.set(planRef, { 
                         updatedAt: new Date(), 
@@ -1138,14 +1177,11 @@
                     people.forEach(p => {
                         const newRef = collectionRef.doc();
                         
-                        // Check warnings logic
                         const warnings = [];
                         if(!p.staffNo) warnings.push('Thiếu danh số');
                         if(p.idExpiryDate) {
-                            // Simple parsing dd/mm/yyyy
                              const parts = p.idExpiryDate.split(/[\/\-\.]/);
                              if(parts.length === 3) {
-                                 // Assuming dd/mm/yyyy
                                  const d = parseInt(parts[0]);
                                  const m = parseInt(parts[1]);
                                  const y = parseInt(parts[2].length === 2 ? '20'+parts[2] : parts[2]);
@@ -1158,13 +1194,16 @@
                              }
                         }
 
+                        // Use Org from Excel if available, otherwise use context default
+                        const finalOrgName = p.orgName || defaultOrgName;
+
                         batch.set(newRef, {
                             ...p,
+                            orgName: finalOrgName,
                             destination: destination || '',
                             nvsxNo: nvsx || '',
                             taskDesc: task || '',
-                            orgId: targetOrgId,
-                            orgName: targetOrgName,
+                            orgId: defaultOrgId, // Keep tracking uploader org ID for permissions
                             warnings,
                             createdAt: new Date(),
                             importedBy: state.currentUser.email
@@ -1280,8 +1319,6 @@
             },
             
             deleteUserDoc: async (uid) => {
-                // NOTE: This only deletes the Firestore profile, NOT the Auth account (requires Admin SDK).
-                // But deleting the profile effectively blocks them from using the app logic.
                 if(!confirm('Xóa thông tin user này khỏi hệ thống? (User vẫn có thể đăng nhập nhưng không có quyền)')) return;
                 try {
                     await db.collection('artifacts').doc(appId).collection('users').doc(uid).delete();
