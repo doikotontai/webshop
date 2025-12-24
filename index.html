@@ -14,12 +14,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
-    <!-- SheetJS (Excel Import) -->
+    <!-- SheetJS & Docx -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
-    <!-- DOCX.js -->
     <script src="https://unpkg.com/docx@7.8.2/build/index.js"></script>
-    <!-- FileSaver.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
     <style>
@@ -27,28 +24,36 @@
         @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         /* Custom scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #999; }
+        ::-webkit-scrollbar-track { background: #f8fafc; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        /* Modern Table Styles */
+        /* Table Sticky Header */
         thead th { 
             position: sticky; 
             top: 0; 
             z-index: 20; 
-            background-color: #f8fafc; /* slate-50 */
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            background-color: #f1f5f9; /* slate-100 */
+            color: #475569;
+            font-weight: 700;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            box-shadow: 0 1px 0 #e2e8f0;
         }
-        .table-row-hover:hover td { background-color: #f0f9ff; } /* sky-50 */
+        
+        /* Compact layout tweaks */
+        .cell-content { display: flex; flex-direction: column; justify-content: center; }
+        .sub-text { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
     </style>
 </head>
-<body class="bg-gray-100 text-slate-800 font-sans h-screen flex flex-col overflow-hidden">
+<body class="bg-slate-50 text-slate-800 font-sans h-screen flex flex-col overflow-hidden">
 
     <!-- Global Loading -->
-    <div id="loadingOverlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-[60] flex items-center justify-center hidden">
-        <div class="flex flex-col items-center bg-white p-6 rounded-xl shadow-2xl border">
-            <div class="loader ease-linear rounded-full border-4 border-t-4 border-blue-500 h-10 w-10 mb-3"></div>
-            <p id="loadingText" class="text-slate-600 font-medium text-sm animate-pulse">Đang xử lý...</p>
+    <div id="loadingOverlay" class="fixed inset-0 bg-white/90 backdrop-blur-sm z-[60] flex items-center justify-center hidden">
+        <div class="flex flex-col items-center">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-blue-600 h-10 w-10 mb-3"></div>
+            <p id="loadingText" class="text-slate-600 font-semibold text-sm animate-pulse">Đang xử lý...</p>
         </div>
     </div>
 
@@ -85,148 +90,148 @@
     <!-- APP SHELL -->
     <div id="appShell" class="hidden flex-col h-full">
         <!-- Header -->
-        <header class="bg-white border-b border-slate-200 shadow-sm flex-none z-30">
-            <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <header class="bg-white border-b border-slate-200 shadow-sm flex-none z-30 h-14">
+            <div class="container mx-auto px-4 h-full flex justify-between items-center">
                 <div class="flex items-center space-x-3">
-                    <div class="bg-blue-600 text-white p-2 rounded-lg shadow-sm">
-                        <i class="fas fa-ship"></i>
+                    <div class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-lg shadow-sm">
+                        <i class="fas fa-ship text-sm"></i>
                     </div>
-                    <div>
-                        <h1 class="text-lg font-bold text-slate-800 leading-tight">ĐIỀU ĐỘ BIỂN</h1>
-                        <span id="userBadge" class="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200"></span>
+                    <div class="flex flex-col justify-center">
+                        <h1 class="text-sm font-bold text-slate-800 leading-none">ĐIỀU ĐỘ BIỂN</h1>
+                        <span id="userBadge" class="text-[10px] font-semibold text-slate-500 mt-0.5"></span>
                     </div>
                 </div>
-                <div class="flex items-center space-x-2">
-                    <button onclick="app.showDashboard()" class="px-3 py-2 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"><i class="fas fa-calendar-alt mr-2"></i>Kế hoạch</button>
-                    <button id="navSettings" onclick="app.showSettings()" class="hidden px-3 py-2 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"><i class="fas fa-cogs mr-2"></i>Cấu hình</button>
-                    <div class="h-6 w-px bg-slate-200 mx-2"></div>
-                    <button onclick="app.logout()" class="px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition"><i class="fas fa-sign-out-alt mr-2"></i>Thoát</button>
+                
+                <div class="flex items-center">
+                    <!-- Login info display -->
+                    <div id="lastLoginInfo" class="hidden md:flex flex-col items-end mr-6 text-xs border-r border-slate-100 pr-6">
+                        <span class="text-slate-400">Login lần cuối</span>
+                        <span id="lastLoginVal" class="font-bold text-slate-700">--</span>
+                    </div>
+
+                    <div class="flex space-x-1">
+                        <button onclick="app.showDashboard()" class="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition"><i class="fas fa-calendar-alt mr-2"></i>Kế hoạch</button>
+                        <button id="navSettings" onclick="app.showSettings()" class="hidden px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition"><i class="fas fa-cogs mr-2"></i>Cấu hình</button>
+                        <button onclick="app.logout()" class="px-3 py-1.5 text-sm font-medium text-red-500 hover:bg-red-50 rounded-md transition ml-1"><i class="fas fa-sign-out-alt"></i></button>
+                    </div>
                 </div>
             </div>
         </header>
 
         <!-- Main Content -->
-        <main class="flex-grow overflow-hidden flex relative bg-slate-50">
+        <main class="flex-grow overflow-hidden flex relative bg-slate-100">
             
             <!-- Dashboard View -->
-            <div id="dashboardView" class="w-full h-full flex flex-col p-4 space-y-4 overflow-y-auto">
-                <!-- Toolbar -->
-                <div class="flex flex-wrap justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex-none gap-4">
-                    <div class="flex items-center gap-4">
-                        <div class="flex flex-col">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ngày kế hoạch</label>
-                            <input type="date" id="planDateInput" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" onchange="app.loadPlan()">
+            <div id="dashboardView" class="w-full h-full flex flex-col p-4 space-y-3 overflow-y-auto">
+                
+                <!-- Top Control Bar & Stats -->
+                <div class="bg-white p-3 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 flex-none">
+                    
+                    <!-- Date & Status -->
+                    <div class="flex items-center gap-4 w-full md:w-auto">
+                        <div class="relative">
+                            <input type="date" id="planDateInput" class="border border-slate-300 rounded px-3 py-1.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" onchange="app.loadPlan()">
+                            <label class="absolute -top-2 left-2 bg-white px-1 text-[10px] font-bold text-slate-400 uppercase">Ngày</label>
                         </div>
-                        <div class="h-8 w-px bg-slate-200"></div>
-                        <div class="flex flex-col">
-                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Trạng thái</label>
-                             <div id="planStatus" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-500 text-center min-w-[100px]">--</div>
+                        <div id="planStatus" class="px-3 py-1.5 rounded text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wider">--</div>
+                    </div>
+
+                    <!-- Stats Compact -->
+                    <div class="flex flex-grow justify-center gap-6 md:gap-12 text-center border-l border-r border-slate-100 px-4">
+                        <div>
+                            <div class="text-[10px] text-slate-400 font-bold uppercase">Tổng</div>
+                            <div class="text-xl font-bold text-slate-700 leading-none mt-0.5" id="statTotal">0</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-emerald-500 font-bold uppercase">Đi biển</div>
+                            <div class="text-xl font-bold text-emerald-600 leading-none mt-0.5" id="statOffshore">0</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-orange-400 font-bold uppercase">Về bờ</div>
+                            <div class="text-xl font-bold text-orange-500 leading-none mt-0.5" id="statReturn">0</div>
+                        </div>
+                        <div id="warningStatBox" class="opacity-30 transition-opacity duration-300">
+                            <div class="text-[10px] text-red-500 font-bold uppercase">Cảnh báo</div>
+                            <div class="text-xl font-bold text-red-600 leading-none mt-0.5" id="statWarnings">0</div>
                         </div>
                     </div>
                     
+                    <!-- Actions -->
                     <div class="flex items-center gap-2">
-                        <div id="lastImportTime" class="hidden text-xs text-right mr-2 text-slate-500 italic">
-                            <i class="far fa-clock mr-1"></i>Cập nhật: <span id="lastImportTimeVal" class="font-bold">--</span>
-                        </div>
-                        <button id="btnImport" onclick="importModal.open()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm flex items-center transition">
+                        <button id="btnImport" onclick="importModal.open()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition">
                             <i class="fas fa-file-excel mr-2"></i> Import
                         </button>
-                        <button id="btnDeleteAll" onclick="app.deleteAllPeople()" class="hidden bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-sm font-medium shadow-sm flex items-center transition">
-                            <i class="fas fa-trash-alt mr-2"></i> Xóa Hết
+                        <button id="btnDeleteAll" onclick="app.deleteAllPeople()" class="hidden bg-white hover:bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition">
+                            <i class="fas fa-trash-alt mr-1"></i> Xóa
                         </button>
-                        <button id="btnLock" onclick="app.toggleLockPlan()" class="hidden bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm flex items-center transition">
-                            <i class="fas fa-lock mr-2"></i> Khóa sổ
+                        <button id="btnLock" onclick="app.toggleLockPlan()" class="hidden bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition">
+                            <i class="fas fa-lock"></i>
                         </button>
-                         <button id="btnExport" onclick="app.clientSideExportDocx()" class="hidden bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm flex items-center transition hover:shadow-md">
-                            <i class="fas fa-file-word mr-2"></i> Xuất DOCX
+                         <button id="btnExport" onclick="app.clientSideExportDocx()" class="hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition">
+                            <i class="fas fa-file-word mr-1"></i> Xuất
                         </button>
-                    </div>
-                </div>
-
-                <!-- Stats Cards -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 flex-none">
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tổng nhân sự</div>
-                        <div class="text-3xl font-bold text-slate-800 mt-1" id="statTotal">0</div>
-                    </div>
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider text-emerald-600">Đi biển</div>
-                        <div class="text-3xl font-bold text-emerald-600 mt-1" id="statOffshore">0</div>
-                    </div>
-                     <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider text-yellow-600">Về bờ</div>
-                        <div class="text-3xl font-bold text-yellow-600 mt-1" id="statReturn">0</div>
-                    </div>
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider text-red-600">Cảnh báo</div>
-                        <div class="text-3xl font-bold text-red-600 mt-1" id="statWarnings">0</div>
                     </div>
                 </div>
 
                 <!-- Main Data Table -->
-                <div class="flex-grow bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col relative">
+                <div class="flex-grow bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col relative">
                     <div class="overflow-auto flex-grow p-0" id="planContent">
-                        <div class="flex flex-col items-center justify-center h-full text-slate-400">
-                            <i class="fas fa-clipboard-list text-6xl mb-4 text-slate-200"></i>
-                            <p>Chọn ngày để xem dữ liệu</p>
-                        </div>
+                        <!-- Content populated by JS -->
                     </div>
                 </div>
             </div>
 
             <!-- Settings View (Admin only) -->
-            <div id="settingsView" class="w-full h-full hidden p-6 overflow-y-auto">
-                <div class="max-w-6xl mx-auto space-y-6">
+            <div id="settingsView" class="w-full h-full hidden p-6 overflow-y-auto bg-slate-50">
+                <div class="max-w-5xl mx-auto space-y-6">
                     <h2 class="text-2xl font-bold text-slate-800">Quản trị hệ thống</h2>
                     
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <!-- Left Col: Orgs & Config -->
                         <div class="space-y-6 lg:col-span-1">
-                            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                                <h3 class="font-bold text-slate-700 border-b pb-3 mb-4 flex justify-between items-center">
-                                    <span>Danh mục Đơn vị</span>
-                                </h3>
-                                <ul id="orgList" class="space-y-2 mb-4 max-h-40 overflow-y-auto pr-2"></ul>
+                            <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                                <h3 class="font-bold text-slate-700 border-b pb-2 mb-4 text-sm uppercase">Danh mục Đơn vị</h3>
+                                <ul id="orgList" class="space-y-2 mb-4 max-h-40 overflow-y-auto pr-2 custom-scrollbar"></ul>
                                 <div class="flex space-x-2 mt-4">
-                                    <input id="newOrgName" type="text" placeholder="Tên đơn vị..." class="border border-slate-300 p-2 rounded-lg flex-grow text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                                    <button onclick="app.addOrg()" class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-blue-700 transition">Thêm</button>
+                                    <input id="newOrgName" type="text" placeholder="Tên đơn vị..." class="border border-slate-300 p-2 rounded text-xs flex-grow focus:ring-1 focus:ring-blue-500 outline-none">
+                                    <button onclick="app.addOrg()" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition">Thêm</button>
                                 </div>
                             </div>
                             
-                            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                                <h3 class="font-bold text-slate-700 border-b pb-3 mb-4">Cấu hình chữ ký</h3>
-                                <div class="space-y-4">
+                            <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                                <h3 class="font-bold text-slate-700 border-b pb-2 mb-4 text-sm uppercase">Cấu hình chữ ký</h3>
+                                <div class="space-y-3">
                                     <div>
-                                        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Tiêu đề (Phải)</label>
-                                        <input type="text" id="sigApprover" class="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="VD: TRƯỞNG BAN TTĐĐSX">
+                                        <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Tiêu đề (Phải)</label>
+                                        <input type="text" id="sigApprover" class="w-full border border-slate-300 p-2 rounded text-xs outline-none" placeholder="VD: TRƯỞNG BAN TTĐĐSX">
                                     </div>
                                      <div>
-                                        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Họ Tên Người duyệt</label>
-                                        <input type="text" id="sigApproverName" class="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="VD: Nguyễn Văn A">
+                                        <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Họ Tên Người duyệt</label>
+                                        <input type="text" id="sigApproverName" class="w-full border border-slate-300 p-2 rounded text-xs outline-none" placeholder="VD: Nguyễn Văn A">
                                     </div>
-                                    <button onclick="app.saveSettings()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg w-full text-sm font-bold shadow-sm transition">Lưu Cấu Hình</button>
+                                    <button onclick="app.saveSettings()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded w-full text-xs font-bold shadow-sm transition">Lưu Cấu Hình</button>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Right Col: User Management -->
                         <div class="lg:col-span-2">
-                             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-full flex flex-col">
-                                <div class="flex justify-between items-center border-b pb-3 mb-4">
-                                    <h3 class="font-bold text-slate-700">Quản lý Tài khoản (Users)</h3>
-                                    <button onclick="userModal.open()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm flex items-center">
-                                        <i class="fas fa-user-plus mr-2"></i> Thêm User
+                             <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-full flex flex-col">
+                                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                                    <h3 class="font-bold text-slate-700 text-sm uppercase">Quản lý Tài khoản</h3>
+                                    <button onclick="userModal.open()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center">
+                                        <i class="fas fa-user-plus mr-1"></i> Thêm User
                                     </button>
                                 </div>
                                 <div class="overflow-auto flex-grow">
-                                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                                    <table class="min-w-full divide-y divide-slate-200 text-xs">
                                         <thead class="bg-slate-50">
                                             <tr>
-                                                <th class="px-4 py-3 text-left font-bold text-slate-600">Email</th>
-                                                <th class="px-4 py-3 text-left font-bold text-slate-600">Tên hiển thị</th>
-                                                <th class="px-4 py-3 text-left font-bold text-slate-600">Vai trò</th>
-                                                <th class="px-4 py-3 text-left font-bold text-slate-600">Thuộc Xưởng</th>
-                                                <th class="px-4 py-3 text-right font-bold text-slate-600">Hành động</th>
+                                                <th class="px-4 py-2 text-left text-slate-600">Email</th>
+                                                <th class="px-4 py-2 text-left text-slate-600">Tên hiển thị</th>
+                                                <th class="px-4 py-2 text-left text-slate-600">Vai trò</th>
+                                                <th class="px-4 py-2 text-left text-slate-600">Đơn vị</th>
+                                                <th class="px-4 py-2 text-right text-slate-600">Hành động</th>
                                             </tr>
                                         </thead>
                                         <tbody id="userListBody" class="divide-y divide-slate-100">
@@ -243,41 +248,28 @@
         </main>
     </div>
 
-    <!-- USER MODAL (Add User) -->
+    <!-- USER MODAL -->
     <div id="userModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col">
-            <div class="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                <h3 class="font-bold text-slate-800 text-lg">Tạo Tài Khoản Mới</h3>
-                <button onclick="userModal.close()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm flex flex-col">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
+                <h3 class="font-bold text-slate-800 text-sm">Thêm User Mới</h3>
+                <button onclick="userModal.close()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
             </div>
-            <div class="p-6 space-y-4">
-                <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-1">Email</label>
-                    <input type="email" id="u_email" class="w-full border rounded-lg p-2.5 text-sm" placeholder="user@xnxl.com">
-                </div>
-                <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-1">Mật khẩu</label>
-                    <input type="text" id="u_password" class="w-full border rounded-lg p-2.5 text-sm" placeholder="Mật khẩu khởi tạo">
-                </div>
-                <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-1">Tên hiển thị</label>
-                    <input type="text" id="u_name" class="w-full border rounded-lg p-2.5 text-sm" placeholder="VD: Xưởng Bờ">
-                </div>
-                <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-1">Vai trò</label>
-                    <select id="u_role" class="w-full border rounded-lg p-2.5 text-sm" onchange="userModal.toggleOrgSelect()">
-                        <option value="workshop">Xưởng (User)</option>
-                        <option value="dispatcher">Điều độ (Admin)</option>
-                    </select>
-                </div>
+            <div class="p-5 space-y-3">
+                <input type="email" id="u_email" class="w-full border rounded p-2 text-sm" placeholder="Email đăng nhập">
+                <input type="text" id="u_password" class="w-full border rounded p-2 text-sm" placeholder="Mật khẩu">
+                <input type="text" id="u_name" class="w-full border rounded p-2 text-sm" placeholder="Tên hiển thị">
+                <select id="u_role" class="w-full border rounded p-2 text-sm" onchange="userModal.toggleOrgSelect()">
+                    <option value="workshop">User (Xưởng)</option>
+                    <option value="dispatcher">Admin (Điều độ)</option>
+                </select>
                 <div id="u_orgWrapper">
-                    <label class="block text-sm font-bold text-slate-700 mb-1">Thuộc Đơn vị</label>
-                    <select id="u_orgId" class="w-full border rounded-lg p-2.5 text-sm"></select>
+                    <select id="u_orgId" class="w-full border rounded p-2 text-sm"></select>
                 </div>
             </div>
-            <div class="p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 rounded-b-xl">
-                <button onclick="userModal.close()" class="px-5 py-2.5 bg-white border rounded-lg text-sm font-medium">Hủy</button>
-                <button onclick="userManager.createUser()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm">Tạo User</button>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 rounded-b-lg">
+                <button onclick="userModal.close()" class="px-3 py-1.5 bg-white border rounded text-xs font-medium hover:bg-slate-50">Hủy</button>
+                <button onclick="userManager.createUser()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold">Tạo User</button>
             </div>
         </div>
     </div>
@@ -286,32 +278,32 @@
     <div id="importModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
             <div class="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                <h3 class="font-bold text-slate-800 text-lg"><i class="fas fa-file-excel mr-2 text-emerald-600"></i>Import Danh sách</h3>
-                <button onclick="importModal.close()" class="text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times text-xl"></i></button>
+                <h3 class="font-bold text-slate-800 text-base"><i class="fas fa-file-excel mr-2 text-emerald-600"></i>Import Danh sách</h3>
+                <button onclick="importModal.close()" class="text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times"></i></button>
             </div>
             
             <div class="p-6 overflow-y-auto flex-grow space-y-5">
                 <div id="importOrgSelectWrapper" class="hidden">
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Chọn Đơn vị Import</label>
-                    <select id="importOrgSelect" class="block w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></select>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Chọn Đơn vị Import</label>
+                    <select id="importOrgSelect" class="block w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></select>
                 </div>
 
-                <div class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 transition cursor-pointer relative group">
+                <div class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-blue-50 transition cursor-pointer relative group">
                     <input type="file" id="excelFile" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept=".xlsx, .xls">
                     <div class="group-hover:scale-105 transition transform duration-200">
-                        <i class="fas fa-cloud-upload-alt text-5xl text-slate-300 mb-3"></i>
+                        <i class="fas fa-cloud-upload-alt text-4xl text-slate-300 mb-2"></i>
                         <p class="text-sm font-medium text-slate-600">Kéo thả hoặc click để chọn file Excel</p>
                     </div>
-                    <p id="fileNameDisplay" class="text-blue-600 font-bold mt-4 text-sm break-all"></p>
+                    <p id="fileNameDisplay" class="text-blue-600 font-bold mt-4 text-xs break-all"></p>
                 </div>
 
-                <div id="parseResult" class="hidden bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm">
+                <div id="parseResult" class="hidden bg-slate-50 p-4 rounded border border-slate-200 text-sm">
                     <div class="grid grid-cols-2 gap-x-4 gap-y-2">
-                        <div><span class="text-slate-500">Ngày ĐK:</span> <span id="prevDate" class="font-semibold text-slate-800">--</span></div>
-                        <div><span class="text-slate-500">Nơi đến:</span> <span id="prevDest" class="font-semibold text-slate-800">--</span></div>
-                        <div class="col-span-2"><span class="text-slate-500">Nhiệm vụ số:</span> <span id="prevNVSX" class="font-semibold text-slate-800">--</span></div>
+                        <div><span class="text-slate-500 text-xs uppercase font-bold">Ngày ĐK:</span> <span id="prevDate" class="font-semibold text-slate-800">--</span></div>
+                        <div><span class="text-slate-500 text-xs uppercase font-bold">Nơi đến:</span> <span id="prevDest" class="font-semibold text-slate-800">--</span></div>
+                        <div class="col-span-2"><span class="text-slate-500 text-xs uppercase font-bold">NVSX:</span> <span id="prevNVSX" class="font-semibold text-slate-800">--</span></div>
                         <div class="col-span-2 border-t border-slate-200 mt-2 pt-2">
-                            <span class="text-slate-500 block mb-1">Công việc:</span> 
+                            <span class="text-slate-500 text-xs uppercase font-bold block mb-1">Công việc:</span> 
                             <div id="prevTask" class="whitespace-pre-wrap text-xs bg-white p-2 rounded border border-slate-200 text-slate-700 font-mono">--</div>
                         </div>
                     </div>
@@ -323,8 +315,8 @@
             </div>
 
             <div class="p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 rounded-b-xl">
-                <button onclick="importModal.close()" class="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-medium transition">Hủy</button>
-                <button onclick="importModal.processImport()" id="btnConfirmImport" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition" disabled>
+                <button onclick="importModal.close()" class="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded text-sm font-medium transition">Hủy</button>
+                <button onclick="importModal.processImport()" id="btnConfirmImport" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-bold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition" disabled>
                     Xác nhận Import
                 </button>
             </div>
@@ -335,7 +327,7 @@
     <div id="editPersonModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
             <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                <h3 class="font-bold text-slate-800"><i class="fas fa-user-edit mr-2 text-blue-600"></i>Sửa thông tin nhân sự</h3>
+                <h3 class="font-bold text-slate-800"><i class="fas fa-user-edit mr-2 text-blue-600"></i>Sửa thông tin</h3>
                 <button onclick="editModal.close()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-6 overflow-y-auto space-y-4">
@@ -343,93 +335,94 @@
                 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">Danh số</label>
-                        <input type="text" id="edit_staffNo" class="w-full border rounded p-2 text-sm">
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Danh số</label>
+                        <input type="text" id="edit_staffNo" class="w-full border rounded p-2 text-sm bg-slate-50">
                     </div>
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">Họ và tên</label>
-                        <input type="text" id="edit_fullName" class="w-full border rounded p-2 text-sm font-bold">
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Họ và tên</label>
+                        <input type="text" id="edit_fullName" class="w-full border rounded p-2 text-sm font-bold bg-slate-50">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">Chức danh</label>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Chức danh</label>
                         <input type="text" id="edit_title" class="w-full border rounded p-2 text-sm">
                     </div>
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">Đơn vị</label>
-                        <input type="text" id="edit_orgName" class="w-full border rounded p-2 text-sm bg-gray-100" readonly>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Đơn vị</label>
+                        <input type="text" id="edit_orgName" class="w-full border rounded p-2 text-sm">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-3 gap-4">
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">Ngày sinh</label>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Ngày sinh</label>
                         <input type="text" id="edit_dob" class="w-full border rounded p-2 text-sm" placeholder="dd/mm/yyyy">
                     </div>
                     <div class="col-span-2">
-                        <label class="text-xs font-bold text-slate-500 uppercase">Nơi sinh</label>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Nơi sinh</label>
                         <input type="text" id="edit_pob" class="w-full border rounded p-2 text-sm">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">SĐT</label>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">SĐT</label>
                         <input type="text" id="edit_phone" class="w-full border rounded p-2 text-sm">
                     </div>
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">CCCD/CMND</label>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">CCCD/CMND</label>
                         <input type="text" id="edit_idNo" class="w-full border rounded p-2 text-sm">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">Ngày cấp</label>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Ngày cấp</label>
                         <input type="text" id="edit_idIssueDate" class="w-full border rounded p-2 text-sm" placeholder="dd/mm/yyyy">
                     </div>
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">Hết hạn</label>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Hết hạn</label>
                         <input type="text" id="edit_idExpiryDate" class="w-full border rounded p-2 text-sm" placeholder="dd/mm/yyyy">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-3 gap-4">
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">Cân nặng</label>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Cân nặng</label>
                         <input type="number" id="edit_weightKg" class="w-full border rounded p-2 text-sm">
                     </div>
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">Hành lý</label>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Hành lý</label>
                         <input type="number" id="edit_luggageKg" class="w-full border rounded p-2 text-sm">
                     </div>
                     <div>
-                        <label class="text-xs font-bold text-slate-500 uppercase">Hàng hóa</label>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Hàng hóa</label>
                         <input type="number" id="edit_cargoKg" class="w-full border rounded p-2 text-sm">
                     </div>
                 </div>
                 
                 <div>
-                    <label class="text-xs font-bold text-slate-500 uppercase">Ghi chú dòng</label>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase">Ghi chú dòng</label>
                     <input type="text" id="edit_rowNote" class="w-full border rounded p-2 text-sm">
                 </div>
                 
-                <!-- Advanced Edit for Destination/Task -->
-                <div class="border-t pt-4 mt-2">
-                    <p class="text-xs text-blue-600 cursor-pointer hover:underline mb-2" onclick="document.getElementById('advEdit').classList.toggle('hidden')">Mở rộng (Sửa Giàn/NVSX)</p>
+                <div class="border-t pt-3 mt-2">
+                    <p class="text-xs text-blue-600 cursor-pointer hover:underline mb-2 font-semibold" onclick="document.getElementById('advEdit').classList.toggle('hidden')">
+                        <i class="fas fa-chevron-down mr-1"></i>Mở rộng (Sửa Giàn/NVSX)
+                    </p>
                     <div id="advEdit" class="hidden space-y-3 bg-slate-50 p-3 rounded border">
                         <div>
-                            <label class="text-xs font-bold text-slate-500">Nơi đến</label>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Nơi đến</label>
                             <input type="text" id="edit_destination" class="w-full border rounded p-2 text-sm">
                         </div>
                         <div>
-                            <label class="text-xs font-bold text-slate-500">NVSX</label>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">NVSX</label>
                             <input type="text" id="edit_nvsxNo" class="w-full border rounded p-2 text-sm">
                         </div>
                         <div>
-                            <label class="text-xs font-bold text-slate-500">Nội dung công việc</label>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Nội dung công việc</label>
                             <textarea id="edit_taskDesc" class="w-full border rounded p-2 text-sm h-20"></textarea>
                         </div>
                     </div>
@@ -437,7 +430,7 @@
 
             </div>
             <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 rounded-b-xl">
-                <button onclick="editModal.close()" class="px-4 py-2 bg-white border hover:bg-slate-100 rounded text-sm text-slate-600 font-medium">Hủy</button>
+                <button onclick="editModal.close()" class="px-4 py-2 bg-white border hover:bg-slate-100 rounded text-sm font-medium">Hủy</button>
                 <button onclick="editModal.save()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold shadow">Lưu thay đổi</button>
             </div>
         </div>
@@ -492,6 +485,14 @@
                 const mm = String(d.getMonth() + 1).padStart(2, '0');
                 return `${hh}:${min} ${dd}/${mm}`;
             },
+            // Just display H:m for short fields
+            formatTimeShort: (dateObj) => {
+                if(!dateObj) return '';
+                const d = new Date(dateObj);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                return `${hh}:${min}`;
+            },
             showToast: (msg, type = 'info') => {
                 const el = document.getElementById('toast');
                 const colors = type === 'error' ? 'bg-red-500' : 'bg-emerald-600';
@@ -520,13 +521,17 @@
                 auth.onAuthStateChanged(async (user) => {
                     if (user) {
                         utils.toggleLoader(true, 'Đang tải thông tin...');
-                        const userDoc = await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).get();
+                        const userDocRef = db.collection('artifacts').doc(appId).collection('users').doc(user.uid);
+                        const userDoc = await userDocRef.get();
                         
+                        // Update Last Login
+                        await userDocRef.set({ lastLogin: new Date() }, { merge: true });
+
                         if (!userDoc.exists) {
                             const role = user.email.includes('admin') ? 'dispatcher' : 'workshop';
                             const orgId = role === 'dispatcher' ? 'XNXL' : 'XuongBo';
-                            await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).set({
-                                email: user.email, role, orgId, displayName: user.displayName || user.email
+                            await userDocRef.set({
+                                email: user.email, role, orgId, displayName: user.displayName || user.email, createdAt: new Date()
                             });
                             state.userRole = role;
                             state.userOrgId = orgId;
@@ -538,6 +543,10 @@
 
                         state.currentUser = user;
                         app.setupUI();
+                        
+                        // Display Login Info
+                        app.displayLastLoginInfo();
+
                         document.getElementById('authScreen').classList.add('hidden');
                         document.getElementById('appShell').classList.remove('hidden');
                         document.getElementById('appShell').classList.add('flex');
@@ -574,7 +583,6 @@
                     }
                 });
                 
-                // Attach Event Listener for Import File
                 document.getElementById('excelFile').addEventListener('change', importModal.handleFile);
             },
 
@@ -587,13 +595,52 @@
                 }
             },
 
+            displayLastLoginInfo: async () => {
+                const loginValEl = document.getElementById('lastLoginVal');
+                const labelEl = document.querySelector('#lastLoginInfo span:first-child');
+                
+                if (state.userRole === 'dispatcher') {
+                    // Find latest login from all users
+                    try {
+                        // NOTE: In a real app we'd use orderBy('lastLogin', 'desc').limit(1)
+                        // But per strict rules "No Complex Queries/indexes", we fetch all and sort in memory.
+                        // Since user list is small (<100), this is acceptable.
+                        const snap = await db.collection('artifacts').doc(appId).collection('users').get();
+                        let latestTime = 0;
+                        let latestUser = '';
+                        
+                        snap.forEach(doc => {
+                            const d = doc.data();
+                            if (d.lastLogin && d.lastLogin.seconds) {
+                                const t = d.lastLogin.seconds * 1000;
+                                if (t > latestTime) {
+                                    latestTime = t;
+                                    latestUser = d.displayName || d.email;
+                                }
+                            }
+                        });
+                        
+                        if (latestTime > 0) {
+                            labelEl.innerText = "User Login cuối:";
+                            loginValEl.innerText = `${latestUser} (${utils.formatDateTime(new Date(latestTime))})`;
+                        } else {
+                            loginValEl.innerText = "Chưa có dữ liệu";
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        loginValEl.innerText = "Lỗi tải";
+                    }
+                } else {
+                    // Show current user's last login (just now)
+                    labelEl.innerText = "Login lần cuối:";
+                    loginValEl.innerText = utils.formatDateTime(new Date());
+                }
+            },
+
             setupUI: () => {
                 const badge = document.getElementById('userBadge');
-                badge.innerText = state.userRole === 'dispatcher' ? 'ĐIỀU ĐỘ' : `${state.userOrgId}`;
-                badge.className = state.userRole === 'dispatcher' ? 
-                    'text-xs font-bold px-2 py-0.5 rounded bg-red-100 text-red-700 border border-red-200' : 
-                    'text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200';
-
+                badge.innerText = state.userRole === 'dispatcher' ? 'ĐIỀU ĐỘ (ADMIN)' : `USER: ${state.userOrgId}`;
+                
                 if (state.userRole === 'dispatcher') {
                     document.getElementById('navSettings').classList.remove('hidden');
                     document.getElementById('btnLock').classList.remove('hidden');
@@ -603,7 +650,7 @@
                      document.getElementById('navSettings').classList.add('hidden');
                      document.getElementById('btnLock').classList.add('hidden');
                      document.getElementById('importOrgSelectWrapper').classList.add('hidden');
-                     document.getElementById('btnExport').classList.add('hidden'); // Hide Export for Workshop
+                     document.getElementById('btnExport').classList.add('hidden');
                 }
             },
 
@@ -622,7 +669,6 @@
                     state.orgs = snap.docs.map(d => ({id: d.id, ...d.data()}));
                 }
                 
-                // Populate Dropdowns
                 const options = state.orgs.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
                 document.getElementById('importOrgSelect').innerHTML = options;
                 document.getElementById('u_orgId').innerHTML = options;
@@ -641,10 +687,10 @@
                     const data = planSnap.data();
                     state.isPlanLocked = data.status === 'Locked';
                     document.getElementById('planStatus').innerText = data.status === 'Locked' ? 'ĐÃ KHÓA' : 'DRAFT';
-                    document.getElementById('planStatus').className = `px-3 py-1 rounded text-xs font-bold ${data.status === 'Locked' ? 'bg-red-100 text-red-600 border border-red-200' : 'bg-green-100 text-green-700 border border-green-200'}`;
+                    document.getElementById('planStatus').className = `px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider ${data.status === 'Locked' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`;
                 } else {
                     document.getElementById('planStatus').innerText = 'MỚI';
-                    document.getElementById('planStatus').className = 'px-3 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200';
+                    document.getElementById('planStatus').className = 'px-3 py-1.5 rounded text-xs font-bold bg-slate-50 text-slate-500 border border-slate-200';
                 }
 
                 const isLocked = state.isPlanLocked;
@@ -654,7 +700,7 @@
                 if(isLocked && !isDispatcher) document.getElementById('btnImport').classList.add('opacity-50', 'cursor-not-allowed');
                 else document.getElementById('btnImport').classList.remove('opacity-50', 'cursor-not-allowed');
 
-                document.getElementById('btnLock').innerHTML = isLocked ? '<i class="fas fa-unlock mr-2"></i> Mở khóa' : '<i class="fas fa-lock mr-2"></i> Khóa sổ';
+                document.getElementById('btnLock').innerHTML = isLocked ? '<i class="fas fa-unlock mr-1"></i> Mở' : '<i class="fas fa-lock mr-1"></i> Khóa';
 
                 const btnDeleteAll = document.getElementById('btnDeleteAll');
                 if(!isLocked && (isDispatcher || state.userRole === 'workshop')) {
@@ -678,42 +724,22 @@
 
             renderPlanTable: (people) => {
                 const container = document.getElementById('planContent');
-                const lastImportEl = document.getElementById('lastImportTime');
-                const lastImportVal = document.getElementById('lastImportTimeVal');
-
+                
                 if (people.length === 0) {
-                    container.innerHTML = `<div class="flex flex-col items-center justify-center h-64 text-slate-400">
-                        <i class="fas fa-clipboard-list text-5xl mb-3 text-slate-200"></i>
-                        <p class="text-sm">Chưa có dữ liệu. Vui lòng Import từ Excel.</p>
+                    container.innerHTML = `<div class="flex flex-col items-center justify-center h-64 text-slate-400 bg-white">
+                        <div class="bg-slate-50 p-6 rounded-full mb-4">
+                            <i class="fas fa-clipboard-list text-4xl text-slate-300"></i>
+                        </div>
+                        <p class="text-sm font-medium">Chưa có dữ liệu. Vui lòng Import từ Excel.</p>
                     </div>`;
                     app.updateStats(0,0,0,0);
-                    lastImportEl.classList.add('hidden');
                     return;
                 }
 
-                // Calculate stats & last import
                 const total = people.length;
                 const offshore = people.filter(p => !p.isReturn).length;
                 const warningCount = people.filter(p => p.warnings && p.warnings.length > 0).length;
                 app.updateStats(total, total, 0, warningCount);
-
-                // Find latest createdAt
-                let maxDate = 0;
-                people.forEach(p => {
-                    if(p.createdAt && p.createdAt.seconds) {
-                        const ms = p.createdAt.seconds * 1000;
-                        if(ms > maxDate) maxDate = ms;
-                    } else if (p.createdAt instanceof Date) {
-                        if(p.createdAt.getTime() > maxDate) maxDate = p.createdAt.getTime();
-                    }
-                });
-                
-                if(maxDate > 0) {
-                    lastImportVal.innerText = utils.formatDateTime(new Date(maxDate));
-                    lastImportEl.classList.remove('hidden');
-                } else {
-                    lastImportEl.classList.add('hidden');
-                }
 
                 const grouped = people.reduce((acc, p) => {
                     const dest = p.destination || 'Chưa xác định';
@@ -729,77 +755,94 @@
                     const taskDisplay = (firstP.taskDesc || '').replace(/\n/g, '<br/>');
                     
                     const metaInfo = `
-                        <div class="text-xs font-normal mt-2 text-slate-600 bg-white/50 p-2 rounded border border-blue-100/50">
-                            <div class="mb-1"><span class="font-bold text-slate-800">NVSX:</span> ${firstP.nvsxNo || '--'}</div>
-                            <div><span class="font-bold text-slate-800">Nội dung công việc:</span><br/>${taskDisplay || '--'}</div>
+                        <div class="mt-1 text-xs text-slate-600 space-y-1">
+                            <div><span class="font-bold">NVSX:</span> ${firstP.nvsxNo || '--'}</div>
+                            <div class="flex items-start"><span class="font-bold mr-1 whitespace-nowrap">Công việc:</span> <span class="line-clamp-2">${taskDisplay || '--'}</span></div>
                         </div>`;
 
                     html += `
-                        <div class="bg-blue-50/80 px-4 py-3 border-b border-blue-100 sticky top-0 z-10 backdrop-blur-sm">
+                        <div class="bg-blue-50/50 px-4 py-3 border-b border-blue-100 sticky top-0 z-10 backdrop-blur-sm shadow-sm">
                             <div class="flex justify-between items-start">
-                                <div class="w-3/4">
-                                    <div class="font-bold text-blue-800 text-lg flex items-center">
+                                <div class="w-4/5">
+                                    <div class="font-bold text-blue-800 text-base flex items-center">
                                         <i class="fas fa-map-marker-alt mr-2 text-blue-500"></i> ${dest}
                                     </div>
                                     ${metaInfo}
                                 </div>
-                                <span class="text-xs bg-white text-blue-700 px-3 py-1 rounded-full font-bold border border-blue-200 shadow-sm">${group.length} người</span>
+                                <span class="text-xs bg-white text-blue-600 px-2 py-1 rounded font-bold border border-blue-100">${group.length} người</span>
                             </div>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-slate-200 text-sm">
-                                <thead class="bg-slate-50">
+                            <table class="min-w-full divide-y divide-slate-100 text-xs">
+                                <thead>
                                     <tr>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-10">STT</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-20">Danh số</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-40">Họ tên</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-48">Chức danh / Đơn vị</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-32">Ngày sinh / Nơi sinh</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-24">SĐT</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-32">CCCD / Hết hạn</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-16">Cân nặng</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-16">Hành lý</th>
-                                        <th class="px-3 py-3 text-left font-bold text-slate-600 border-b w-16">Hàng hóa</th>
-                                        <th class="px-3 py-3 text-center font-bold text-slate-600 border-b sticky right-0 bg-slate-50 shadow-l-sm w-20">Xử lý</th>
+                                        <th class="px-3 py-3 text-center w-10">STT</th>
+                                        <th class="px-3 py-3 text-left w-20">Danh số</th>
+                                        <th class="px-3 py-3 text-left w-40">Họ tên</th>
+                                        <th class="px-3 py-3 text-left w-40">Chức danh / Đơn vị</th>
+                                        <th class="px-3 py-3 text-left w-32">Ngày sinh / Nơi sinh</th>
+                                        <th class="px-3 py-3 text-left w-24">SĐT</th>
+                                        <th class="px-3 py-3 text-left w-32">CCCD / Hết hạn</th>
+                                        <th class="px-3 py-3 text-center w-16">Cân nặng</th>
+                                        <th class="px-3 py-3 text-center w-16">Hành lý</th>
+                                        <th class="px-3 py-3 text-center w-16">Hàng hóa</th>
+                                        <th class="px-3 py-3 text-left w-32">Ghi chú</th>
+                                        <th class="px-3 py-3 text-center sticky right-0 bg-slate-50 w-20 shadow-l-sm">Sửa</th>
                                     </tr>
                                 </thead>
-                                <tbody class="bg-white divide-y divide-slate-100">
+                                <tbody class="bg-white divide-y divide-slate-50">
                     `;
                     
                     group.sort((a,b) => (a.nvsxNo || '').localeCompare(b.nvsxNo || '')).forEach((p, idx) => {
-                        const warningClass = (p.warnings && p.warnings.length > 0) ? 'bg-red-50' : '';
+                        const warningClass = (p.warnings && p.warnings.length > 0) ? 'bg-red-50/50' : '';
                         const warningIcon = (p.warnings && p.warnings.length > 0) ? `<i class="fas fa-exclamation-triangle text-red-500 ml-1" title="${p.warnings.join(', ')}"></i>` : '';
                         
                         const canEdit = state.userRole === 'dispatcher' || (!state.isPlanLocked && p.orgId === state.userOrgId);
                         
+                        // Time Ago Logic
+                        let updatedTimeStr = '';
+                        if (p.updatedAt) {
+                            updatedTimeStr = utils.formatTimeShort(p.updatedAt.seconds ? new Date(p.updatedAt.seconds * 1000) : new Date(p.updatedAt));
+                        } else if (p.createdAt) {
+                            updatedTimeStr = utils.formatTimeShort(p.createdAt.seconds ? new Date(p.createdAt.seconds * 1000) : new Date(p.createdAt));
+                        }
+
                         const actionBtns = canEdit ? 
-                            `<div class="flex justify-center space-x-2">
-                                <button onclick="editModal.open('${p.id}')" class="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-1.5 rounded transition"><i class="fas fa-pen"></i></button>
-                                <button onclick="app.deletePerson('${p.id}')" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded transition"><i class="fas fa-trash-alt"></i></button>
+                            `<div class="flex flex-col items-center justify-center">
+                                <div class="flex space-x-2 mb-1">
+                                    <button onclick="editModal.open('${p.id}')" class="text-blue-500 hover:text-blue-700 transition"><i class="fas fa-pen"></i></button>
+                                    <button onclick="app.deletePerson('${p.id}')" class="text-red-400 hover:text-red-600 transition"><i class="fas fa-trash-alt"></i></button>
+                                </div>
+                                <span class="text-[9px] text-slate-400 font-mono">${updatedTimeStr}</span>
                              </div>` : 
-                            `<span class="text-slate-300"><i class="fas fa-lock"></i></span>`;
+                            `<div class="flex flex-col items-center">
+                                <span class="text-slate-300"><i class="fas fa-lock"></i></span>
+                                <span class="text-[9px] text-slate-300 font-mono mt-1">${updatedTimeStr}</span>
+                             </div>`;
 
                         html += `
-                            <tr class="${warningClass} hover:bg-slate-50 transition duration-150 table-row-hover group">
-                                <td class="px-3 py-2.5 text-slate-500 text-center">${idx + 1}</td>
-                                <td class="px-3 py-2.5 text-slate-800 font-mono text-xs">${p.staffNo}</td>
-                                <td class="px-3 py-2.5 font-semibold text-slate-800">${p.fullName}</td>
-                                <td class="px-3 py-2.5 text-slate-600">
+                            <tr class="${warningClass} hover:bg-blue-50/30 transition duration-75 group">
+                                <td class="px-3 py-2 text-slate-400 text-center font-mono">${idx + 1}</td>
+                                <td class="px-3 py-2 text-slate-600 font-mono">${p.staffNo}</td>
+                                <td class="px-3 py-2 font-semibold text-slate-700">${p.fullName}</td>
+                                <td class="px-3 py-2 text-slate-600">
                                     <div class="font-medium">${p.title || ''}</div>
-                                    <div class="text-xs text-slate-500 mt-0.5">${p.orgName || '-'}</div>
+                                    <div class="text-[10px] text-slate-400 uppercase mt-0.5 font-bold tracking-wide">${p.orgName || '-'}</div>
                                 </td>
-                                <td class="px-3 py-2.5 text-slate-600">
-                                    <div class="whitespace-nowrap">${p.dob || '-'}</div>
-                                    <div class="text-xs text-slate-500 mt-0.5">${p.pob || ''}</div>
+                                <td class="px-3 py-2 text-slate-600">
+                                    <div class="font-mono text-xs">${p.dob || '-'}</div>
+                                    <div class="text-[10px] text-slate-400 mt-0.5">${p.pob || ''}</div>
                                 </td>
-                                <td class="px-3 py-2.5 text-slate-600 font-mono text-xs">${p.phone || '-'}</td>
-                                <td class="px-3 py-2.5 text-slate-600">
-                                    ${p.idNo || '-'}<br/><span class="text-[10px] ${p.isIdExpiring ? 'text-red-600 font-bold' : 'text-slate-400'}">${p.idExpiryDate || ''}</span>${warningIcon}
+                                <td class="px-3 py-2 text-slate-600 font-mono">${p.phone || '-'}</td>
+                                <td class="px-3 py-2 text-slate-600">
+                                    <div class="font-mono text-xs">${p.idNo || '-'}</div>
+                                    <div class="text-[10px] ${p.isIdExpiring ? 'text-red-600 font-bold' : 'text-slate-400'} mt-0.5">${p.idExpiryDate || ''}${warningIcon}</div>
                                 </td>
-                                <td class="px-3 py-2.5 text-slate-600">${p.weightKg || 0}</td>
-                                <td class="px-3 py-2.5 text-slate-600">${p.luggageKg || 0}</td>
-                                <td class="px-3 py-2.5 text-slate-600">${p.cargoKg || 0}</td>
-                                <td class="px-3 py-2.5 text-center sticky right-0 bg-white group-hover:bg-slate-50 shadow-l-sm">
+                                <td class="px-3 py-2 text-slate-600 text-center">${p.weightKg || 0}</td>
+                                <td class="px-3 py-2 text-slate-600 text-center">${p.luggageKg || 0}</td>
+                                <td class="px-3 py-2 text-slate-600 text-center">${p.cargoKg || 0}</td>
+                                <td class="px-3 py-2 text-slate-500 italic text-[11px] break-words max-w-[150px]">${p.rowNote || ''}</td>
+                                <td class="px-3 py-2 text-center sticky right-0 bg-white group-hover:bg-blue-50/30 shadow-l-sm border-l border-slate-50">
                                     ${actionBtns}
                                 </td>
                             </tr>
@@ -870,6 +913,10 @@
                 document.getElementById('statOffshore').innerText = offshore;
                 document.getElementById('statReturn').innerText = returnCount;
                 document.getElementById('statWarnings').innerText = warnings;
+                
+                const wBox = document.getElementById('warningStatBox');
+                if(warnings > 0) wBox.classList.remove('opacity-30');
+                else wBox.classList.add('opacity-30');
             },
 
             toggleLockPlan: async () => {
@@ -897,7 +944,7 @@
             renderOrgList: () => {
                 const ul = document.getElementById('orgList');
                 ul.innerHTML = state.orgs.map(o => `
-                    <li class="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100 text-sm">
+                    <li class="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100 text-xs">
                         <span>${o.name}</span>
                         <button onclick="app.deleteOrg('${o.id}')" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>
                     </li>
@@ -1041,13 +1088,10 @@
                             // 3) NVSX: B8 (Index: Row 7, Col 1)
                             if (rows[7] && rows[7][1]) {
                                 let val = rows[7][1].toString().trim();
-                                // Regex matches pattern like 501-25 or 501-25BS1
                                 const matches = val.match(/\d{3}-\d{2}(?:BS\d+)?/gi);
                                 if (matches && matches.length > 0) {
-                                    // Join unique matches with separator
                                     nvsx = [...new Set(matches)].join('; ');
                                 } else {
-                                    // Fallback if no pattern match but has colon
                                     if(val.includes(':')) {
                                         val = val.substring(val.indexOf(':') + 1).trim();
                                     }
@@ -1058,16 +1102,12 @@
                             // 4) Nội dung công việc: B9 (Index: Row 8, Col 1)
                             if (rows[8] && rows[8][1]) {
                                 let val = rows[8][1].toString().trim();
-                                
-                                // FIX: Remove prefix if present (e.g. "Công việc:")
                                 if(val.includes(':')) {
                                     const firstColon = val.indexOf(':');
                                     if (firstColon < 50) { 
                                         val = val.substring(firstColon + 1).trim();
                                     }
                                 }
-                                
-                                // FIX: Auto-formatting for multiple lines
                                 const lines = val.split(/\r\n|\r|\n/).map(x => x.trim()).filter(x => x);
                                 if(lines.length > 1) {
                                     task = lines.map((line, idx) => `${idx+1}) ${line}`).join('\n');
@@ -1102,7 +1142,8 @@
                                 idExpiry: headers.findIndex(h => h.includes('hết hạn') || h.includes('ngày cấp')), 
                                 weight: headers.findIndex(h => h.includes('kg') || h.includes('trọng lượng') || h.includes('cân nặng')),
                                 luggage: headers.findIndex(h => h.includes('hành lý')),
-                                cargo: headers.findIndex(h => h.includes('hàng hóa') || h.includes('vật tư'))
+                                cargo: headers.findIndex(h => h.includes('hàng hóa') || h.includes('vật tư')),
+                                note: headers.findIndex(h => h.includes('ghi chú'))
                             };
                             
                             if(colMap.fullName === -1) return reject(new Error("Cột 'Họ và tên' không tìm thấy"));
@@ -1127,6 +1168,7 @@
                                     weightKg: colMap.weight > -1 ? (parseFloat(row[colMap.weight]) || 0) : 0,
                                     luggageKg: colMap.luggage > -1 ? (parseFloat(row[colMap.luggage]) || 0) : 0,
                                     cargoKg: colMap.cargo > -1 ? (parseFloat(row[colMap.cargo]) || 0) : 0,
+                                    rowNote: colMap.note > -1 ? utils.cleanString(row[colMap.note]) : ''
                                 };
                                 people.push(person);
                             }
@@ -1261,11 +1303,11 @@
                     
                     return `
                         <tr class="hover:bg-slate-50">
-                            <td class="px-4 py-3">${u.email}</td>
-                            <td class="px-4 py-3 font-medium">${u.displayName || '-'}</td>
-                            <td class="px-4 py-3">${roleBadge}</td>
-                            <td class="px-4 py-3 text-slate-500">${u.orgId || 'XNXL'}</td>
-                            <td class="px-4 py-3 text-right">
+                            <td class="px-4 py-2">${u.email}</td>
+                            <td class="px-4 py-2 font-medium">${u.displayName || '-'}</td>
+                            <td class="px-4 py-2">${roleBadge}</td>
+                            <td class="px-4 py-2 text-slate-500">${u.orgId || 'XNXL'}</td>
+                            <td class="px-4 py-2 text-right">
                                 <button onclick="userManager.sendResetEmail('${u.email}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold mr-2">Reset Pass</button>
                                 <button onclick="userManager.deleteUserDoc('${doc.id}')" class="text-red-600 hover:text-red-800"><i class="fas fa-trash"></i></button>
                             </td>
