@@ -158,6 +158,9 @@
                     
                     <!-- Actions -->
                     <div class="flex items-center gap-2">
+                        <button id="btnAdd" onclick="editModal.open()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition">
+                            <i class="fas fa-plus mr-2"></i> Thêm
+                        </button>
                         <button id="btnImport" onclick="importModal.open()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition">
                             <i class="fas fa-file-excel mr-2"></i> Import
                         </button>
@@ -327,7 +330,7 @@
     <div id="editPersonModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
             <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                <h3 class="font-bold text-slate-800"><i class="fas fa-user-edit mr-2 text-blue-600"></i>Sửa thông tin</h3>
+                <h3 class="font-bold text-slate-800"><i class="fas fa-user-edit mr-2 text-blue-600"></i><span id="editModalTitle">Sửa thông tin</span></h3>
                 <button onclick="editModal.close()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-6 overflow-y-auto space-y-4">
@@ -415,7 +418,7 @@
                     <div id="advEdit" class="hidden space-y-3 bg-slate-50 p-3 rounded border">
                         <div>
                             <label class="text-[10px] font-bold text-slate-500 uppercase">Nơi đến</label>
-                            <input type="text" id="edit_destination" class="w-full border rounded p-2 text-sm">
+                            <input type="text" id="edit_destination" class="w-full border rounded p-2 text-sm" placeholder="Nhập tên Giàn/Tàu...">
                         </div>
                         <div>
                             <label class="text-[10px] font-bold text-slate-500 uppercase">NVSX</label>
@@ -492,6 +495,41 @@
                 const hh = String(d.getHours()).padStart(2, '0');
                 const min = String(d.getMinutes()).padStart(2, '0');
                 return `${hh}:${min}`;
+            },
+            // Robust Date Parsing for Excel
+            processExcelDate: (input) => {
+                if (!input) return '';
+                
+                // Case 1: Excel Serial Number (e.g. 45285)
+                // Excel dates start from Dec 30 1899 (mostly)
+                if (typeof input === 'number') {
+                    // 25569 is the offset between Excel base date and JS base date
+                    const date = new Date(Math.round((input - 25569) * 86400 * 1000));
+                    const d = String(date.getDate()).padStart(2, '0');
+                    const m = String(date.getMonth() + 1).padStart(2, '0');
+                    const y = date.getFullYear();
+                    // Check if result is valid
+                    if (!isNaN(date.getTime())) {
+                        return `${d}/${m}/${y}`;
+                    }
+                }
+                
+                // Case 2: String formats
+                const str = String(input).trim();
+                
+                // Matches dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy
+                // Also handles single digit days/months (e.g. 1/1/2024)
+                const parts = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+                if (parts) {
+                    const d = parts[1].padStart(2, '0');
+                    const m = parts[2].padStart(2, '0');
+                    const y = parts[3];
+                    return `${d}/${m}/${y}`;
+                }
+                
+                // Return original string if we can't parse it confidently, 
+                // so user sees the error or raw text
+                return str;
             },
             showToast: (msg, type = 'info') => {
                 const el = document.getElementById('toast');
@@ -602,9 +640,6 @@
                 if (state.userRole === 'dispatcher') {
                     // Find latest login from all users
                     try {
-                        // NOTE: In a real app we'd use orderBy('lastLogin', 'desc').limit(1)
-                        // But per strict rules "No Complex Queries/indexes", we fetch all and sort in memory.
-                        // Since user list is small (<100), this is acceptable.
                         const snap = await db.collection('artifacts').doc(appId).collection('users').get();
                         let latestTime = 0;
                         let latestUser = '';
@@ -700,6 +735,11 @@
                 if(isLocked && !isDispatcher) document.getElementById('btnImport').classList.add('opacity-50', 'cursor-not-allowed');
                 else document.getElementById('btnImport').classList.remove('opacity-50', 'cursor-not-allowed');
 
+                // NEW: Handle Add Button State
+                document.getElementById('btnAdd').disabled = isLocked && !isDispatcher;
+                if(isLocked && !isDispatcher) document.getElementById('btnAdd').classList.add('opacity-50', 'cursor-not-allowed');
+                else document.getElementById('btnAdd').classList.remove('opacity-50', 'cursor-not-allowed');
+
                 document.getElementById('btnLock').innerHTML = isLocked ? '<i class="fas fa-unlock mr-1"></i> Mở' : '<i class="fas fa-lock mr-1"></i> Khóa';
 
                 const btnDeleteAll = document.getElementById('btnDeleteAll');
@@ -730,7 +770,7 @@
                         <div class="bg-slate-50 p-6 rounded-full mb-4">
                             <i class="fas fa-clipboard-list text-4xl text-slate-300"></i>
                         </div>
-                        <p class="text-sm font-medium">Chưa có dữ liệu. Vui lòng Import từ Excel.</p>
+                        <p class="text-sm font-medium">Chưa có dữ liệu. Vui lòng Import hoặc Thêm mới.</p>
                     </div>`;
                     app.updateStats(0,0,0,0);
                     return;
@@ -752,11 +792,9 @@
                 Object.keys(grouped).sort().forEach(dest => {
                     const group = grouped[dest];
                     
-                    // -- CHANGE START: Aggregate ALL NVSX and Task info for the header --
                     const allNvsx = [...new Set(group.map(p => p.nvsxNo).filter(x => x))].join('; ');
                     const uniqueTasks = [...new Set(group.map(p => p.taskDesc).filter(t => t))];
                     const taskDisplay = uniqueTasks.map(t => t.replace(/\n/g, '<br/>')).join('<br/><span class="text-slate-300 block my-1 border-t border-slate-200"></span>');
-                    // -- CHANGE END --
                     
                     const metaInfo = `
                         <div class="mt-1 text-xs text-slate-600 space-y-1">
@@ -764,12 +802,20 @@
                             <div class="flex items-start"><span class="font-bold mr-1 whitespace-nowrap">Công việc:</span> <span class="line-clamp-3 overflow-hidden text-ellipsis">${taskDisplay || '--'}</span></div>
                         </div>`;
 
+                    // ADDED: Edit Destination Button logic
+                    let editDestBtn = '';
+                    if (state.userRole === 'dispatcher') {
+                         // Escape single quotes for JS string safely
+                         const safeDest = dest.replace(/'/g, "\\'");
+                         editDestBtn = `<button onclick="app.editDestination('${safeDest}')" class="ml-2 text-slate-400 hover:text-blue-600 transition" title="Sửa tên giàn"><i class="fas fa-edit"></i></button>`;
+                    }
+
                     html += `
                         <div class="bg-blue-50/50 px-4 py-3 border-b border-blue-100 sticky top-0 z-10 backdrop-blur-sm shadow-sm">
                             <div class="flex justify-between items-start">
                                 <div class="w-4/5">
                                     <div class="font-bold text-blue-800 text-base flex items-center">
-                                        <i class="fas fa-map-marker-alt mr-2 text-blue-500"></i> ${dest}
+                                        <i class="fas fa-map-marker-alt mr-2 text-blue-500"></i> ${dest} ${editDestBtn}
                                     </div>
                                     ${metaInfo}
                                 </div>
@@ -810,6 +856,15 @@
                         } else if (p.createdAt) {
                             updatedTimeStr = utils.formatTimeShort(p.createdAt.seconds ? new Date(p.createdAt.seconds * 1000) : new Date(p.createdAt));
                         }
+                        
+                        // Extract User Prefix (e.g. 'xbi' from 'xbi@xnxl.com')
+                        let userAction = p.updatedBy || p.importedBy || '';
+                        let userPrefix = '';
+                        if (userAction && userAction.includes('@')) {
+                            userPrefix = userAction.split('@')[0];
+                        } else {
+                            userPrefix = userAction;
+                        }
 
                         const actionBtns = canEdit ? 
                             `<div class="flex flex-col items-center justify-center">
@@ -817,11 +872,11 @@
                                     <button onclick="editModal.open('${p.id}')" class="text-blue-500 hover:text-blue-700 transition"><i class="fas fa-pen"></i></button>
                                     <button onclick="app.deletePerson('${p.id}')" class="text-red-400 hover:text-red-600 transition"><i class="fas fa-trash-alt"></i></button>
                                 </div>
-                                <span class="text-[9px] text-slate-400 font-mono">${updatedTimeStr}</span>
+                                <span class="text-[9px] text-slate-400 font-mono block mt-1 leading-tight">${userPrefix} ${updatedTimeStr}</span>
                              </div>` : 
                             `<div class="flex flex-col items-center">
                                 <span class="text-slate-300"><i class="fas fa-lock"></i></span>
-                                <span class="text-[9px] text-slate-300 font-mono mt-1">${updatedTimeStr}</span>
+                                <span class="text-[9px] text-slate-300 font-mono mt-1 block leading-tight">${userPrefix} ${updatedTimeStr}</span>
                              </div>`;
 
                         html += `
@@ -858,6 +913,48 @@
                 container.innerHTML = html;
             },
             
+            // ADDED: Logic to batch update destination
+            editDestination: async (oldName) => {
+                const newName = prompt("Nhập tên Giàn/Tàu mới:", oldName);
+                if (newName === null || newName === oldName) return;
+                const finalName = newName.trim();
+                if (!finalName) return alert("Tên không được để trống");
+
+                utils.toggleLoader(true, "Đang cập nhật tên giàn...");
+                try {
+                    // Filter targets from local state (synced with DB)
+                    const targets = state.currentPlanPeople.filter(p => p.destination === oldName);
+                    
+                    if (targets.length === 0) {
+                        utils.showToast("Không tìm thấy nhân sự nào để cập nhật", "error");
+                        return;
+                    }
+
+                    const batch = db.batch();
+                    const collectionRef = db.collection('artifacts').doc(appId)
+                                .collection('dailyPlans').doc(state.currentDateKey)
+                                .collection('people');
+                    
+                    targets.forEach(p => {
+                        const docRef = collectionRef.doc(p.id);
+                        batch.update(docRef, { 
+                            destination: finalName, 
+                            updatedBy: state.currentUser.email, 
+                            updatedAt: new Date() 
+                        });
+                    });
+
+                    await batch.commit();
+                    utils.showToast(`Đã đổi tên giàn cho ${targets.length} nhân sự`, 'success');
+                    await app.loadPlan();
+                } catch (e) {
+                    console.error(e);
+                    utils.showToast("Lỗi: " + e.message, "error");
+                } finally {
+                    utils.toggleLoader(false);
+                }
+            },
+
             deletePerson: async (personId) => {
                 if(!confirm("Xác nhận xóa nhân sự này?")) return;
                 utils.toggleLoader(true, 'Đang xóa...');
@@ -1138,12 +1235,15 @@
                                 staffNo: headers.findIndex(h => h.includes('danh số') || h.includes('msnv')),
                                 fullName: headers.findIndex(h => h.includes('họ và tên') || h.includes('họ tên')),
                                 title: headers.findIndex(h => h.includes('chức danh')),
-                                org: headers.findIndex(h => h.includes('đơn vị') || h.includes('xưởng') || h.includes('bộ phận') || h.includes('công ty')), // Add Org Mapping
-                                dob: headers.findIndex(h => h.includes('sinh')),
+                                org: headers.findIndex(h => h.includes('đơn vị') || h.includes('xưởng') || h.includes('bộ phận') || h.includes('công ty')), 
+                                dob: headers.findIndex(h => h.includes('sinh') && !h.includes('nơi')),
                                 pob: headers.findIndex(h => h.includes('nơi sinh')),
                                 phone: headers.findIndex(h => h.includes('sđt') || h.includes('điện thoại')),
                                 idNo: headers.findIndex(h => h.includes('cccd') || h.includes('cmnd')),
-                                idExpiry: headers.findIndex(h => h.includes('hết hạn') || h.includes('ngày cấp')), 
+                                // CHANGE START: Tách biệt tìm cột Ngày Cấp và Ngày Hết Hạn
+                                idIssue: headers.findIndex(h => h.includes('ngày cấp')),
+                                idExpiry: headers.findIndex(h => h.includes('hết hạn') || h.includes('có giá trị')), 
+                                // CHANGE END
                                 weight: headers.findIndex(h => h.includes('kg') || h.includes('trọng lượng') || h.includes('cân nặng')),
                                 luggage: headers.findIndex(h => h.includes('hành lý')),
                                 cargo: headers.findIndex(h => h.includes('hàng hóa') || h.includes('vật tư')),
@@ -1163,12 +1263,15 @@
                                     fullName: name,
                                     staffNo: colMap.staffNo > -1 ? utils.cleanString(row[colMap.staffNo]) : '',
                                     title: colMap.title > -1 ? utils.cleanString(row[colMap.title]) : '',
-                                    orgName: colMap.org > -1 ? utils.cleanString(row[colMap.org]) : '', // Extract Org from Excel if available
-                                    dob: colMap.dob > -1 ? utils.cleanString(row[colMap.dob]) : '',
+                                    orgName: colMap.org > -1 ? utils.cleanString(row[colMap.org]) : '', 
+                                    // CHANGE: Sử dụng processExcelDate cho các trường ngày
+                                    dob: colMap.dob > -1 ? utils.processExcelDate(row[colMap.dob]) : '',
                                     pob: colMap.pob > -1 ? utils.cleanString(row[colMap.pob]) : '',
                                     phone: colMap.phone > -1 ? utils.cleanString(row[colMap.phone]) : '',
                                     idNo: colMap.idNo > -1 ? utils.cleanString(row[colMap.idNo]) : '',
-                                    idExpiryDate: colMap.idExpiry > -1 ? utils.cleanString(row[colMap.idExpiry]) : '',
+                                    idIssueDate: colMap.idIssue > -1 ? utils.processExcelDate(row[colMap.idIssue]) : '',
+                                    idExpiryDate: colMap.idExpiry > -1 ? utils.processExcelDate(row[colMap.idExpiry]) : '',
+                                    // CHANGE END
                                     weightKg: colMap.weight > -1 ? (parseFloat(row[colMap.weight]) || 0) : 0,
                                     luggageKg: colMap.luggage > -1 ? (parseFloat(row[colMap.luggage]) || 0) : 0,
                                     cargoKg: colMap.cargo > -1 ? (parseFloat(row[colMap.cargo]) || 0) : 0,
@@ -1476,12 +1579,10 @@
                         const uniqueNVSX = [...new Set(group.map(p => p.nvsxNo).filter(x => x))].join('; ');
                         const uniqueTasks = [...new Set(group.map(p => p.taskDesc).filter(t => t))];
                         
-                        // -- CHANGE START 2.1: Remove "Tại" --
                         children.push(new Paragraph({ 
                             children: [ new TextRun({ text: "-", size: SIZE_NORMAL, font: FONT_FAMILY }), new TextRun({ text: ` ${dest}: `, bold: true, size: SIZE_NORMAL, font: FONT_FAMILY }) ],
                             indent: { left: 720 }, spacing: { before: 100 }
                         }));
-                        // -- CHANGE END 2.1 --
 
                         if(uniqueNVSX) {
                              children.push(new Paragraph({ children: [ new TextRun({ text: `+ NVSX: ${uniqueNVSX}`, size: SIZE_NORMAL, font: FONT_FAMILY }) ], indent: { left: 1440 } }));
@@ -1492,7 +1593,6 @@
                             uniqueTasks.forEach(task => {
                                 const lines = task.split('\n');
                                 lines.forEach((line) => {
-                                    // -- CHANGE START 2.2: Replace numbering "1)" with "- " --
                                     let cleanLine = line.trim();
                                     if (/^\d+[\)\.]/.test(cleanLine)) {
                                         cleanLine = cleanLine.replace(/^\d+[\)\.]\s*/, '- ');
@@ -1503,7 +1603,6 @@
                                     if(cleanLine) {
                                          children.push(new Paragraph({ children: [ new TextRun({ text: cleanLine, size: SIZE_NORMAL, font: FONT_FAMILY }) ], indent: { left: 2160 } }));
                                     }
-                                    // -- CHANGE END 2.2 --
                                 });
                             });
                         }
@@ -1613,38 +1712,78 @@
         const editModal = {
             currentPersonId: null,
             
-            open: async (personId) => {
-                utils.toggleLoader(true, "Đang tải...");
+            open: async (personId = null) => {
+                utils.toggleLoader(true, "Đang xử lý...");
                 editModal.currentPersonId = personId;
+                const titleEl = document.getElementById('editModalTitle');
                 
-                try {
-                    const doc = await db.collection('artifacts').doc(appId)
-                        .collection('dailyPlans').doc(state.currentDateKey)
-                        .collection('people').doc(personId).get();
-                    
-                    if(!doc.exists) throw new Error("Không tìm thấy nhân sự");
-                    const p = doc.data();
+                // Clear Form
+                document.getElementById('edit_staffNo').value = '';
+                document.getElementById('edit_fullName').value = '';
+                document.getElementById('edit_title').value = '';
+                document.getElementById('edit_orgName').value = '';
+                document.getElementById('edit_dob').value = '';
+                document.getElementById('edit_pob').value = '';
+                document.getElementById('edit_phone').value = '';
+                document.getElementById('edit_idNo').value = '';
+                document.getElementById('edit_idIssueDate').value = '';
+                document.getElementById('edit_idExpiryDate').value = '';
+                document.getElementById('edit_weightKg').value = '';
+                document.getElementById('edit_luggageKg').value = '';
+                document.getElementById('edit_cargoKg').value = '';
+                document.getElementById('edit_rowNote').value = '';
+                
+                // Adv
+                document.getElementById('edit_destination').value = '';
+                document.getElementById('edit_nvsxNo').value = '';
+                document.getElementById('edit_taskDesc').value = '';
 
-                    // Fill Fields
-                    document.getElementById('edit_staffNo').value = p.staffNo || '';
-                    document.getElementById('edit_fullName').value = p.fullName || '';
-                    document.getElementById('edit_title').value = p.title || '';
-                    document.getElementById('edit_orgName').value = p.orgName || '';
-                    document.getElementById('edit_dob').value = p.dob || '';
-                    document.getElementById('edit_pob').value = p.pob || '';
-                    document.getElementById('edit_phone').value = p.phone || '';
-                    document.getElementById('edit_idNo').value = p.idNo || '';
-                    document.getElementById('edit_idIssueDate').value = p.idIssueDate || '';
-                    document.getElementById('edit_idExpiryDate').value = p.idExpiryDate || '';
-                    document.getElementById('edit_weightKg').value = p.weightKg || '';
-                    document.getElementById('edit_luggageKg').value = p.luggageKg || '';
-                    document.getElementById('edit_cargoKg').value = p.cargoKg || '';
-                    document.getElementById('edit_rowNote').value = p.rowNote || '';
-                    
-                    // Advanced
-                    document.getElementById('edit_destination').value = p.destination || '';
-                    document.getElementById('edit_nvsxNo').value = p.nvsxNo || '';
-                    document.getElementById('edit_taskDesc').value = p.taskDesc || '';
+                try {
+                    if (personId) {
+                        titleEl.innerText = "Sửa thông tin";
+                        const doc = await db.collection('artifacts').doc(appId)
+                            .collection('dailyPlans').doc(state.currentDateKey)
+                            .collection('people').doc(personId).get();
+                        
+                        if(!doc.exists) throw new Error("Không tìm thấy nhân sự");
+                        const p = doc.data();
+
+                        // Fill Fields
+                        document.getElementById('edit_staffNo').value = p.staffNo || '';
+                        document.getElementById('edit_fullName').value = p.fullName || '';
+                        document.getElementById('edit_title').value = p.title || '';
+                        document.getElementById('edit_orgName').value = p.orgName || '';
+                        document.getElementById('edit_dob').value = p.dob || '';
+                        document.getElementById('edit_pob').value = p.pob || '';
+                        document.getElementById('edit_phone').value = p.phone || '';
+                        document.getElementById('edit_idNo').value = p.idNo || '';
+                        document.getElementById('edit_idIssueDate').value = p.idIssueDate || '';
+                        document.getElementById('edit_idExpiryDate').value = p.idExpiryDate || '';
+                        
+                        document.getElementById('edit_weightKg').value = p.weightKg || '';
+                        document.getElementById('edit_luggageKg').value = p.luggageKg || '';
+                        document.getElementById('edit_cargoKg').value = p.cargoKg || '';
+                        document.getElementById('edit_rowNote').value = p.rowNote || '';
+                        
+                        // Advanced
+                        document.getElementById('edit_destination').value = p.destination || '';
+                        document.getElementById('edit_nvsxNo').value = p.nvsxNo || '';
+                        document.getElementById('edit_taskDesc').value = p.taskDesc || '';
+                        
+                        document.getElementById('advEdit').classList.add('hidden'); // Default hide for edit
+                    } else {
+                        // ADD MODE
+                        titleEl.innerText = "Thêm nhân sự mới";
+                        
+                        // Default Org
+                        if (state.userRole !== 'dispatcher') {
+                             const org = state.orgs.find(o => o.id === state.userOrgId);
+                             document.getElementById('edit_orgName').value = org ? org.name : state.userOrgId;
+                        }
+                        
+                        // Auto-expand advanced for destination input
+                        document.getElementById('advEdit').classList.remove('hidden');
+                    }
 
                     document.getElementById('editPersonModal').classList.remove('hidden');
                     document.getElementById('editPersonModal').classList.add('flex');
@@ -1674,6 +1813,7 @@
                     idNo: document.getElementById('edit_idNo').value,
                     idIssueDate: document.getElementById('edit_idIssueDate').value,
                     idExpiryDate: document.getElementById('edit_idExpiryDate').value,
+                    
                     weightKg: Number(document.getElementById('edit_weightKg').value),
                     luggageKg: Number(document.getElementById('edit_luggageKg').value),
                     cargoKg: Number(document.getElementById('edit_cargoKg').value),
@@ -1683,12 +1823,16 @@
                     nvsxNo: document.getElementById('edit_nvsxNo').value,
                     taskDesc: document.getElementById('edit_taskDesc').value,
                     
+                    orgName: document.getElementById('edit_orgName').value,
+                    
                     updatedBy: state.currentUser.email,
                     updatedAt: new Date()
                 };
 
                 // Re-validate Warnings
                 const warnings = [];
+                if(!updatedData.staffNo) warnings.push('Thiếu danh số');
+                
                 if(updatedData.idExpiryDate) {
                     const parts = updatedData.idExpiryDate.split('/');
                     if(parts.length === 3) {
@@ -1696,18 +1840,39 @@
                         const expDate = new Date(y, m-1, d);
                         const diffTime = expDate - new Date();
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        if(diffDays <= 60) warnings.push('CCCD sắp/đã hết hạn');
+                        if(diffDays < 0) warnings.push('CCCD Hết hạn');
+                        else if(diffDays <= 60) warnings.push('CCCD sắp/đã hết hạn');
                         updatedData.isIdExpiring = true;
                     }
                 }
                 updatedData.warnings = warnings;
 
                 try {
-                    await db.collection('artifacts').doc(appId)
-                        .collection('dailyPlans').doc(state.currentDateKey)
-                        .collection('people').doc(editModal.currentPersonId).update(updatedData);
+                    // Decide Add or Update
+                    if (editModal.currentPersonId) {
+                        // UPDATE
+                        await db.collection('artifacts').doc(appId)
+                            .collection('dailyPlans').doc(state.currentDateKey)
+                            .collection('people').doc(editModal.currentPersonId).update(updatedData);
+                        utils.showToast("Đã cập nhật thông tin", "success");
+                    } else {
+                        // CREATE
+                        updatedData.createdAt = new Date();
+                        updatedData.importedBy = state.currentUser.email; // Use importedBy for consistency in table view
+                        updatedData.orgId = state.userRole === 'dispatcher' ? 'XNXL' : state.userOrgId; // Assign OrgID for permission
+                        
+                        // Ensure Plan Doc exists (Merge Set)
+                        await db.collection('artifacts').doc(appId).collection('dailyPlans').doc(state.currentDateKey).set({
+                            updatedAt: new Date(),
+                            status: state.isPlanLocked ? 'Locked' : 'Draft'
+                        }, { merge: true });
+                        
+                        await db.collection('artifacts').doc(appId)
+                            .collection('dailyPlans').doc(state.currentDateKey)
+                            .collection('people').add(updatedData);
+                        utils.showToast("Đã thêm mới nhân sự", "success");
+                    }
                     
-                    utils.showToast("Đã cập nhật thông tin", "success");
                     editModal.close();
                     await app.loadPlan();
                 } catch(e) {
