@@ -279,7 +279,7 @@
         </div>
     </div>
 
-    <!-- Export DOCX Modal (Existing) -->
+    <!-- Export DOCX Modal (Existing - Modified Logic) -->
     <div id="exportModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm flex flex-col">
             <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
@@ -301,7 +301,24 @@
             </div>
             <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 rounded-b-lg">
                 <button onclick="exportManager.close()" class="px-4 py-2 bg-white border border-slate-300 rounded text-sm font-medium hover:bg-slate-50">Hủy</button>
-                <button onclick="exportManager.processExport()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold shadow-sm">Xuất File DOCX</button>
+                <button onclick="exportManager.previewExport()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold shadow-sm">Tiếp tục</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Export Preview Modal -->
+    <div id="exportPreviewModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+                <h3 class="font-bold text-slate-800 text-lg flex items-center"><i class="fas fa-list-alt text-blue-600 mr-2"></i> Xác nhận nội dung xuất</h3>
+                <button onclick="document.getElementById('exportPreviewModal').classList.add('hidden'); document.getElementById('exportPreviewModal').classList.remove('flex')" class="text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-grow custom-scrollbar space-y-4" id="exportPreviewContent">
+                <!-- Content injected via JS -->
+            </div>
+            <div class="p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 rounded-b-xl">
+                <button onclick="document.getElementById('exportPreviewModal').classList.add('hidden'); document.getElementById('exportPreviewModal').classList.remove('flex')" class="px-5 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded text-sm font-bold transition">Hủy bỏ</button>
+                <button onclick="exportManager.confirmExport()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold shadow-lg transition transform hover:-translate-y-0.5"><i class="fas fa-file-download mr-2"></i> Xác nhận Xuất file</button>
             </div>
         </div>
     </div>
@@ -1291,22 +1308,99 @@
                     return `<li class="flex justify-between items-center bg-white p-2 rounded border border-slate-200 text-sm"><span class="font-bold text-slate-700">${d}/${m}/${y}</span><button onclick="exportManager.removeDate('${dateStr}')" class="text-red-500 hover:text-red-700 font-bold px-2">&times;</button></li>`;
                 }).join('');
             },
-            processExport: async () => {
+            // NEW: Preview Function (Requirement 2)
+            previewExport: async () => {
                 if (exportManager.selectedDates.length === 0) return utils.showToast("Vui lòng chọn ít nhất 1 ngày", "error");
-                utils.toggleLoader(true, "Đang tổng hợp...");
+                utils.toggleLoader(true, "Đang tổng hợp dữ liệu...");
                 try {
                     const promises = exportManager.selectedDates.map(async dateStr => {
-                        // UPDATED PATH: Use public/data/dailyPlans
+                        const snap = await getPublicColl('dailyPlans').doc(dateStr.replace(/-/g, '')).collection('people').get();
+                        const people = snap.docs.map(d => d.data());
+                        return { date: dateStr, people };
+                    });
+                    const results = await Promise.all(promises);
+                    
+                    // Filter empty days
+                    const validData = results.filter(r => r.people.length > 0);
+                    if (validData.length === 0) {
+                        utils.showToast("Không có dữ liệu để xuất", "error");
+                        utils.toggleLoader(false);
+                        return;
+                    }
+
+                    // Build Preview HTML
+                    let html = '';
+                    validData.forEach(dayData => {
+                        const [y, m, d] = dayData.date.split('-');
+                        const formattedDate = `${d}/${m}/${y}`;
+                        
+                        // Group by Destination
+                        const grouped = dayData.people.reduce((acc, p) => { const k = p.destination || 'Chưa xác định'; if(!acc[k]) acc[k]=[]; acc[k].push(p); return acc; }, {});
+
+                        Object.keys(grouped).sort().forEach(dest => {
+                            const group = grouped[dest];
+                            const nvsx = [...new Set(group.map(p => p.nvsxNo).filter(x => x))].join('; ');
+                            const task = [...new Set(group.map(p => p.taskDesc).filter(t => t))].join('; ');
+                            const names = group.map(p => `<span class="bg-slate-100 px-2 py-0.5 rounded text-slate-700">${p.fullName}</span>`).join(' ');
+
+                            html += `
+                                <div class="bg-white rounded border border-slate-200 p-4 shadow-sm text-sm">
+                                    <div class="flex justify-between border-b pb-2 mb-2">
+                                        <div class="font-bold text-blue-800"><i class="fas fa-calendar-alt mr-1"></i> ${formattedDate}</div>
+                                        <div class="font-bold text-slate-700"><i class="fas fa-ship mr-1"></i> ${dest}</div>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="grid grid-cols-12 gap-2">
+                                            <div class="col-span-2 text-xs font-bold text-slate-500 uppercase">NVSX:</div>
+                                            <div class="col-span-10 font-mono text-slate-800">${nvsx || '--'}</div>
+                                        </div>
+                                        <div class="grid grid-cols-12 gap-2">
+                                            <div class="col-span-2 text-xs font-bold text-slate-500 uppercase">Công việc:</div>
+                                            <div class="col-span-10 italic text-slate-700">${task || '--'}</div>
+                                        </div>
+                                        <div class="grid grid-cols-12 gap-2 mt-2 pt-2 border-t border-dashed border-slate-100">
+                                            <div class="col-span-2 text-xs font-bold text-slate-500 uppercase self-center">Nhân sự (${group.length}):</div>
+                                            <div class="col-span-10 flex flex-wrap gap-1 text-xs leading-5">
+                                                ${names}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    });
+
+                    document.getElementById('exportPreviewContent').innerHTML = html;
+                    
+                    // Hide Export Modal, Show Preview Modal
+                    exportManager.close();
+                    document.getElementById('exportPreviewModal').classList.remove('hidden');
+                    document.getElementById('exportPreviewModal').classList.add('flex');
+
+                } catch (e) { console.error(e); utils.showToast("Lỗi: " + e.message, "error"); } finally { utils.toggleLoader(false); }
+            },
+            
+            confirmExport: async () => {
+                 utils.toggleLoader(true, "Đang xuất file...");
+                 try {
+                    const promises = exportManager.selectedDates.map(async dateStr => {
                         const snap = await getPublicColl('dailyPlans').doc(dateStr.replace(/-/g, '')).collection('people').get();
                         return snap.docs.map(d => d.data());
                     });
                     const results = await Promise.all(promises);
                     const allPeople = results.flat();
-                    if (allPeople.length === 0) { utils.showToast("Không có dữ liệu", "error"); utils.toggleLoader(false); return; }
+                    
                     const dateDisplayString = exportManager.selectedDates.map(ds => { const [y, m, d] = ds.split('-'); return `${d}.${m}.${y}`; }).join(' + ');
                     await app.generateDocx(allPeople, dateDisplayString);
-                    utils.showToast("Đã xuất file thành công", "success"); exportManager.close();
-                } catch (e) { console.error(e); utils.showToast("Lỗi: " + e.message, "error"); } finally { utils.toggleLoader(false); }
+                    
+                    utils.showToast("Đã xuất file thành công", "success");
+                    document.getElementById('exportPreviewModal').classList.add('hidden');
+                    document.getElementById('exportPreviewModal').classList.remove('flex');
+                 } catch (e) {
+                     utils.showToast("Lỗi: " + e.message, "error");
+                 } finally {
+                     utils.toggleLoader(false);
+                 }
             }
         };
 
@@ -1439,9 +1533,14 @@
                     const taskDisplay = [...new Set(group.map(p => p.taskDesc).filter(t => t))].map(t => t.replace(/\n/g, '<br/>')).join('<br/><span class="text-slate-300 block my-1 border-t border-slate-200"></span>');
                     
                     const safeDest = dest.replace(/'/g, "\\'");
-                    const editBtn = state.userRole === 'dispatcher' ? `<button onclick="app.editDestination('${safeDest}')" class="ml-2 text-slate-400 hover:text-blue-600 transition"><i class="fas fa-edit"></i></button>` : '';
+                    
+                    // Button Logic (Requirement 1: Admin can edit NVSX/Task)
+                    const isAdmin = state.userRole === 'dispatcher';
+                    const editBtn = isAdmin ? `<button onclick="app.editDestination('${safeDest}')" class="ml-2 text-slate-400 hover:text-blue-600 transition" title="Sửa tên Giàn"><i class="fas fa-edit"></i></button>` : '';
+                    const editNvsxBtn = isAdmin ? `<button onclick="app.editGroupField('${safeDest}', 'nvsxNo', 'NVSX')" class="ml-2 text-slate-400 hover:text-blue-600 transition" title="Sửa NVSX"><i class="fas fa-edit"></i></button>` : '';
+                    const editTaskBtn = isAdmin ? `<button onclick="app.editGroupField('${safeDest}', 'taskDesc', 'Nội dung')" class="ml-2 text-slate-400 hover:text-blue-600 transition" title="Sửa công việc"><i class="fas fa-edit"></i></button>` : '';
 
-                    html += `<div class="bg-blue-50/50 px-4 py-3 border-b border-blue-100 sticky top-0 z-10 backdrop-blur-sm shadow-sm"><div class="flex justify-between items-start"><div class="w-4/5"><div class="font-bold text-blue-800 text-base flex items-center"><i class="fas fa-map-marker-alt mr-2 text-blue-500"></i> ${dest} ${editBtn}</div><div class="mt-1 text-xs text-slate-600 space-y-1"><div><span class="font-bold">NVSX:</span> ${allNvsx || '--'}</div><div class="flex items-start"><span class="font-bold mr-1 whitespace-nowrap">Công việc:</span> <span class="line-clamp-3 overflow-hidden text-ellipsis">${taskDisplay || '--'}</span></div></div></div><span class="text-xs bg-white text-blue-600 px-2 py-1 rounded font-bold border border-blue-100">${group.length} người</span></div></div><div class="overflow-x-auto"><table class="min-w-full divide-y divide-slate-100 text-xs"><thead><tr><th class="px-3 py-3 text-center w-10">STT</th><th class="px-3 py-3 text-left w-20">Danh số</th><th class="px-3 py-3 text-left w-40">Họ tên</th><th class="px-3 py-3 text-left w-40">Chức danh / Đơn vị</th><th class="px-3 py-3 text-left w-32">Ngày sinh / Nơi sinh</th><th class="px-3 py-3 text-left w-24">SĐT</th><th class="px-3 py-3 text-left w-32">CCCD / Hết hạn</th><th class="px-3 py-3 text-center w-16">Cân nặng</th><th class="px-3 py-3 text-center w-16">Hành lý</th><th class="px-3 py-3 text-center w-16">Hàng hóa</th><th class="px-3 py-3 text-left w-32">Ghi chú</th><th class="px-3 py-3 text-center sticky right-0 bg-slate-50 w-20 shadow-l-sm">Sửa</th></tr></thead><tbody class="bg-white divide-y divide-slate-50">`;
+                    html += `<div class="bg-blue-50/50 px-4 py-3 border-b border-blue-100 sticky top-0 z-10 backdrop-blur-sm shadow-sm"><div class="flex justify-between items-start"><div class="w-4/5"><div class="font-bold text-blue-800 text-base flex items-center"><i class="fas fa-map-marker-alt mr-2 text-blue-500"></i> ${dest} ${editBtn}</div><div class="mt-1 text-xs text-slate-600 space-y-1"><div><span class="font-bold">NVSX:</span> ${allNvsx || '--'} ${editNvsxBtn}</div><div class="flex items-start"><span class="font-bold mr-1 whitespace-nowrap">Công việc:</span> <span class="line-clamp-3 overflow-hidden text-ellipsis">${taskDisplay || '--'}</span> ${editTaskBtn}</div></div></div><span class="text-xs bg-white text-blue-600 px-2 py-1 rounded font-bold border border-blue-100">${group.length} người</span></div></div><div class="overflow-x-auto"><table class="min-w-full divide-y divide-slate-100 text-xs"><thead><tr><th class="px-3 py-3 text-center w-10">STT</th><th class="px-3 py-3 text-left w-20">Danh số</th><th class="px-3 py-3 text-left w-40">Họ tên</th><th class="px-3 py-3 text-left w-40">Chức danh / Đơn vị</th><th class="px-3 py-3 text-left w-32">Ngày sinh / Nơi sinh</th><th class="px-3 py-3 text-left w-24">SĐT</th><th class="px-3 py-3 text-left w-32">CCCD / Hết hạn</th><th class="px-3 py-3 text-center w-16">Cân nặng</th><th class="px-3 py-3 text-center w-16">Hành lý</th><th class="px-3 py-3 text-center w-16">Hàng hóa</th><th class="px-3 py-3 text-left w-32">Ghi chú</th><th class="px-3 py-3 text-center sticky right-0 bg-slate-50 w-20 shadow-l-sm">Sửa</th></tr></thead><tbody class="bg-white divide-y divide-slate-50">`;
                     
                     group.sort((a,b) => (a.nvsxNo||'').localeCompare(b.nvsxNo||'')).forEach((p, idx) => {
                         const warnClass = (p.warnings&&p.warnings.length>0) ? 'bg-red-50/50' : '';
@@ -1473,6 +1572,34 @@
                     targets.forEach(p => batch.update(col.doc(p.id), { destination: newName.trim(), updatedBy: state.currentUser.email, updatedAt: new Date() }));
                     await batch.commit(); utils.showToast(`Đã đổi tên giàn cho ${targets.length} nhân sự`, 'success');
                 } catch (e) { utils.showToast("Lỗi: " + e.message, "error"); } finally { utils.toggleLoader(false); }
+            },
+            // NEW: Function to edit NVSX or Task description for a whole group
+            editGroupField: async (destination, field, label) => {
+                const targets = state.currentPlanPeople.filter(p => p.destination === destination);
+                if (targets.length === 0) return utils.showToast("Không tìm thấy nhân sự nào", "error");
+                
+                // Get current unique value to show in prompt
+                const currentVal = [...new Set(targets.map(p => p[field]).filter(x => x))].join('; ');
+                
+                const newVal = prompt(`Nhập ${label} mới cho "${destination}" (sẽ áp dụng cho tất cả):`, currentVal);
+                if (newVal === null) return; // User cancelled
+
+                utils.toggleLoader(true, "Đang cập nhật...");
+                try {
+                    const batch = db.batch();
+                    const col = getPublicColl('dailyPlans').doc(state.currentDateKey).collection('people');
+                    
+                    const updateObj = { updatedBy: state.currentUser.email, updatedAt: new Date() };
+                    updateObj[field] = newVal.trim();
+
+                    targets.forEach(p => batch.update(col.doc(p.id), updateObj));
+                    await batch.commit();
+                    utils.showToast(`Đã cập nhật ${label} cho ${targets.length} nhân sự`, 'success');
+                } catch (e) {
+                    utils.showToast("Lỗi: " + e.message, "error");
+                } finally {
+                    utils.toggleLoader(false);
+                }
             },
             deletePerson: async (id) => { 
                 if(!confirm("Xác nhận xóa nhân sự này?")) return;
