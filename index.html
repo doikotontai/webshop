@@ -144,7 +144,10 @@
                         <button id="btnImport" onclick="importModal.open()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i class="fas fa-file-excel mr-2"></i> Import</button>
                         <button id="btnDeleteAll" onclick="app.deleteAllPeople()" class="hidden bg-white hover:bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i class="fas fa-trash-alt mr-1"></i> Xóa</button>
                         <button id="btnLock" onclick="app.toggleLockPlan()" class="hidden bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i class="fas fa-lock"></i></button>
+                         <!-- Export DOCX -->
                          <button id="btnExport" onclick="exportManager.open()" class="hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i class="fas fa-file-word mr-1"></i> Xuất</button>
+                         <!-- NEW: Report Button -->
+                         <button id="btnReport" onclick="reportManager.open()" class="hidden bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i class="fas fa-chart-bar mr-1"></i> Báo cáo</button>
                     </div>
                 </div>
 
@@ -214,7 +217,71 @@
         </main>
     </div>
 
-    <!-- MODALS are handled by JS managers below -->
+    <!-- MODALS -->
+
+    <!-- REPORT MODAL -->
+    <div id="reportModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-md flex flex-col">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
+                <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fas fa-chart-bar text-purple-600 mr-2"></i> Báo Cáo Số Liệu</h3>
+                <button onclick="reportManager.close()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 space-y-5">
+                <!-- Mode Selector -->
+                <div class="flex bg-slate-100 p-1 rounded-lg">
+                    <button onclick="reportManager.setMode('days')" id="rptModeDays" class="flex-1 py-1.5 text-xs font-bold rounded-md transition bg-white shadow text-slate-800">Theo Ngày</button>
+                    <button onclick="reportManager.setMode('month')" id="rptModeMonth" class="flex-1 py-1.5 text-xs font-bold rounded-md transition text-slate-500 hover:text-slate-800">Theo Tháng</button>
+                    <button onclick="reportManager.setMode('year')" id="rptModeYear" class="flex-1 py-1.5 text-xs font-bold rounded-md transition text-slate-500 hover:text-slate-800">Cả Năm</button>
+                </div>
+
+                <!-- Input Area -->
+                <div id="rptInputArea">
+                    <!-- Days Input -->
+                    <div id="rptDaysView" class="space-y-3">
+                         <div class="flex gap-2">
+                            <input type="date" id="rptDateInput" class="border border-slate-300 rounded px-3 py-2 text-sm flex-grow focus:ring-1 focus:ring-purple-500 outline-none">
+                            <button onclick="reportManager.addDate()" class="bg-purple-50 text-purple-600 border border-purple-200 px-3 py-2 rounded text-sm font-bold hover:bg-purple-100 transition">Thêm</button>
+                        </div>
+                        <div class="bg-slate-50 rounded border border-slate-200 p-2 h-24 overflow-y-auto custom-scrollbar">
+                            <ul id="rptDateList" class="space-y-1"></ul>
+                        </div>
+                    </div>
+
+                    <!-- Month Input -->
+                    <div id="rptMonthView" class="hidden">
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Chọn Tháng:</label>
+                        <input type="month" id="rptMonthInput" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 outline-none">
+                    </div>
+
+                    <!-- Year Input -->
+                    <div id="rptYearView" class="hidden">
+                         <label class="block text-xs font-bold text-slate-500 mb-1">Chọn Năm:</label>
+                         <select id="rptYearInput" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 outline-none">
+                             <!-- JS will populate years -->
+                         </select>
+                         <p class="text-xs text-orange-500 mt-2 italic"><i class="fas fa-exclamation-circle"></i> Lưu ý: Xuất cả năm có thể mất vài phút.</p>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div id="rptProgress" class="hidden">
+                    <div class="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                        <span>Đang tải dữ liệu...</span>
+                        <span id="rptProgressPct">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2.5">
+                        <div id="rptProgressBar" class="bg-purple-600 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 rounded-b-lg">
+                <button onclick="reportManager.close()" class="px-4 py-2 bg-white border border-slate-300 rounded text-sm font-medium hover:bg-slate-50">Hủy</button>
+                <button onclick="reportManager.processReport()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-bold shadow-sm">Xuất Excel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export DOCX Modal (Existing) -->
     <div id="exportModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm flex flex-col">
             <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
@@ -249,53 +316,34 @@
                 <button onclick="document.getElementById('importResultModal').classList.add('hidden'); document.getElementById('importResultModal').classList.remove('flex')" class="text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5 overflow-auto flex-grow custom-scrollbar space-y-6">
-                
-                <!-- Section 1: Success -->
+                <!-- Success List -->
                 <div>
                     <h4 class="font-bold text-emerald-600 text-sm mb-2 flex items-center"><i class="fas fa-check-circle mr-2"></i> Đã thêm thành công (<span id="successCount">0</span>)</h4>
                     <div class="overflow-hidden border border-emerald-100 rounded-lg">
                         <table class="min-w-full divide-y divide-emerald-100 text-xs">
-                            <thead class="bg-emerald-50">
-                                <tr>
-                                    <th class="px-4 py-2 text-left font-semibold text-emerald-700">Họ và tên</th>
-                                    <th class="px-4 py-2 text-left font-semibold text-emerald-700">Danh số</th>
-                                    <th class="px-4 py-2 text-left font-semibold text-emerald-700">Chức danh</th>
-                                    <th class="px-4 py-2 text-left font-semibold text-emerald-700">Đơn vị</th>
-                                </tr>
-                            </thead>
+                            <thead class="bg-emerald-50"><tr><th class="px-4 py-2 text-left font-semibold text-emerald-700">Họ và tên</th><th class="px-4 py-2 text-left font-semibold text-emerald-700">Danh số</th><th class="px-4 py-2 text-left font-semibold text-emerald-700">Chức danh</th><th class="px-4 py-2 text-left font-semibold text-emerald-700">Đơn vị</th></tr></thead>
                             <tbody id="successListBody" class="divide-y divide-emerald-50 bg-white"></tbody>
                         </table>
                     </div>
                 </div>
-
-                <!-- Section 2: Conflicts -->
+                <!-- Conflict List -->
                 <div>
                     <h4 class="font-bold text-red-600 text-sm mb-2 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> Đã bị trùng / Bỏ qua (<span id="conflictCount">0</span>)</h4>
                     <div class="overflow-hidden border border-red-100 rounded-lg">
                         <table class="min-w-full divide-y divide-red-100 text-xs">
-                            <thead class="bg-red-50">
-                                <tr>
-                                    <th class="px-4 py-2 text-left font-semibold text-red-700">Họ và tên</th>
-                                    <th class="px-4 py-2 text-left font-semibold text-red-700">Danh số</th>
-                                    <th class="px-4 py-2 text-left font-semibold text-red-700">Đã đăng ký đi</th>
-                                    <th class="px-4 py-2 text-left font-semibold text-red-700">Người thêm</th>
-                                    <th class="px-4 py-2 text-left font-semibold text-red-700">Lúc</th>
-                                </tr>
-                            </thead>
+                            <thead class="bg-red-50"><tr><th class="px-4 py-2 text-left font-semibold text-red-700">Họ và tên</th><th class="px-4 py-2 text-left font-semibold text-red-700">Danh số</th><th class="px-4 py-2 text-left font-semibold text-red-700">Đã đăng ký đi</th><th class="px-4 py-2 text-left font-semibold text-red-700">Người thêm</th><th class="px-4 py-2 text-left font-semibold text-red-700">Lúc</th></tr></thead>
                             <tbody id="conflictListBody" class="divide-y divide-red-50 bg-white"></tbody>
                         </table>
                     </div>
                 </div>
-
             </div>
             <div class="p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 rounded-b-xl">
-                <button onclick="document.getElementById('importResultModal').classList.add('hidden'); document.getElementById('importResultModal').classList.remove('flex')" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold shadow-sm transition">
-                    Đóng
-                </button>
+                <button onclick="document.getElementById('importResultModal').classList.add('hidden'); document.getElementById('importResultModal').classList.remove('flex')" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold shadow-sm transition">Đóng</button>
             </div>
         </div>
     </div>
 
+    <!-- User Modal -->
     <div id="userModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm flex flex-col">
             <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
@@ -305,17 +353,10 @@
             <div class="p-5 space-y-3">
                 <input type="hidden" id="u_id">
                 <input type="email" id="u_email" class="w-full border rounded p-2 text-sm" placeholder="Email đăng nhập">
-                <div id="u_passwordWrapper">
-                    <input type="text" id="u_password" class="w-full border rounded p-2 text-sm" placeholder="Mật khẩu">
-                </div>
+                <div id="u_passwordWrapper"><input type="text" id="u_password" class="w-full border rounded p-2 text-sm" placeholder="Mật khẩu"></div>
                 <input type="text" id="u_name" class="w-full border rounded p-2 text-sm" placeholder="Tên hiển thị">
-                <select id="u_role" class="w-full border rounded p-2 text-sm" onchange="userModal.toggleOrgSelect()">
-                    <option value="workshop">User (Xưởng)</option>
-                    <option value="dispatcher">Admin (Điều độ)</option>
-                </select>
-                <div id="u_orgWrapper">
-                    <select id="u_orgId" class="w-full border rounded p-2 text-sm"></select>
-                </div>
+                <select id="u_role" class="w-full border rounded p-2 text-sm" onchange="userModal.toggleOrgSelect()"><option value="workshop">User (Xưởng)</option><option value="dispatcher">Admin (Điều độ)</option></select>
+                <div id="u_orgWrapper"><select id="u_orgId" class="w-full border rounded p-2 text-sm"></select></div>
             </div>
             <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 rounded-b-lg">
                 <button onclick="userModal.close()" class="px-3 py-1.5 bg-white border rounded text-xs font-medium hover:bg-slate-50">Hủy</button>
@@ -324,6 +365,7 @@
         </div>
     </div>
 
+    <!-- Import Modal -->
     <div id="importModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
             <div class="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
@@ -460,7 +502,7 @@
             isPlanLocked: false,
             currentPlanPeople: [],
             unsubscribePlan: null,
-            users: [] // NEW: Store users list for edit lookup
+            users: []
         };
 
         const utils = {
@@ -526,12 +568,9 @@
                         const d = doc.data();
                         document.getElementById('edit_fullName').value = d.fullName || '';
                         document.getElementById('edit_title').value = d.title || '';
-                        
-                        // CHANGE: Only populate orgName if user is Dispatcher/Admin
                         if (state.userRole === 'dispatcher') {
                             document.getElementById('edit_orgName').value = d.orgName || '';
                         }
-                        
                         document.getElementById('edit_dob').value = d.dob || '';
                         document.getElementById('edit_pob').value = d.pob || '';
                         document.getElementById('edit_phone').value = d.phone || '';
@@ -542,7 +581,6 @@
                         document.getElementById('edit_luggageKg').value = d.luggageKg || '';
                         document.getElementById('edit_cargoKg').value = d.cargoKg || '';
                         utils.showToast("Đã tìm thấy thông tin nhân sự", "success");
-                        // NEW: Show destinations when user is found/searching
                         document.getElementById('advEdit').classList.remove('hidden');
                         editModal.renderDestinationSuggestions();
                     } else {
@@ -572,11 +610,204 @@
             }
         };
 
+        const reportManager = {
+            selectedDates: [],
+            mode: 'days', // 'days', 'month', 'year'
+            
+            open: () => {
+                document.getElementById('reportModal').classList.remove('hidden');
+                document.getElementById('reportModal').classList.add('flex');
+                
+                // Init View
+                reportManager.setMode('days');
+                
+                // Populate Year Select
+                const yearSelect = document.getElementById('rptYearInput');
+                yearSelect.innerHTML = '';
+                const currentYear = new Date().getFullYear();
+                for (let y = currentYear; y >= 2024; y--) {
+                    const opt = document.createElement('option');
+                    opt.value = y;
+                    opt.text = `Năm ${y}`;
+                    yearSelect.appendChild(opt);
+                }
+                
+                // Pre-fill Today
+                const todayStr = document.getElementById('planDateInput').value;
+                if(todayStr) {
+                     document.getElementById('rptDateInput').value = todayStr;
+                     document.getElementById('rptMonthInput').value = todayStr.substring(0, 7);
+                }
+            },
+            
+            close: () => {
+                document.getElementById('reportModal').classList.add('hidden');
+                document.getElementById('reportModal').classList.remove('flex');
+            },
+            
+            setMode: (mode) => {
+                reportManager.mode = mode;
+                // UI Toggle
+                ['days', 'month', 'year'].forEach(m => {
+                    const btn = document.getElementById(`rptMode${m.charAt(0).toUpperCase() + m.slice(1)}`);
+                    if(m === mode) {
+                        btn.className = "flex-1 py-1.5 text-xs font-bold rounded-md transition bg-white shadow text-purple-700";
+                    } else {
+                        btn.className = "flex-1 py-1.5 text-xs font-bold rounded-md transition text-slate-500 hover:text-slate-800";
+                    }
+                });
+                
+                document.getElementById('rptDaysView').classList.toggle('hidden', mode !== 'days');
+                document.getElementById('rptMonthView').classList.toggle('hidden', mode !== 'month');
+                document.getElementById('rptYearView').classList.toggle('hidden', mode !== 'year');
+            },
+            
+            addDate: () => {
+                const val = document.getElementById('rptDateInput').value;
+                if(val && !reportManager.selectedDates.includes(val)) {
+                    reportManager.selectedDates.push(val);
+                    reportManager.renderDateList();
+                }
+            },
+            
+            removeDate: (val) => {
+                reportManager.selectedDates = reportManager.selectedDates.filter(d => d !== val);
+                reportManager.renderDateList();
+            },
+            
+            renderDateList: () => {
+                const ul = document.getElementById('rptDateList');
+                ul.innerHTML = reportManager.selectedDates.map(d => {
+                    const [y,m,day] = d.split('-');
+                    return `<li class="flex justify-between items-center bg-white p-1.5 rounded border border-slate-200 text-xs">
+                        <span class="font-bold text-slate-700">${day}/${m}/${y}</span>
+                        <button onclick="reportManager.removeDate('${d}')" class="text-red-500 hover:text-red-700 font-bold px-2">&times;</button>
+                    </li>`;
+                }).join('');
+            },
+            
+            generateDateRange: () => {
+                if (reportManager.mode === 'days') return reportManager.selectedDates;
+                
+                let start, end;
+                if (reportManager.mode === 'month') {
+                    const mVal = document.getElementById('rptMonthInput').value; // YYYY-MM
+                    if(!mVal) return [];
+                    const [y, m] = mVal.split('-');
+                    start = new Date(y, m-1, 1);
+                    end = new Date(y, m, 0);
+                } else if (reportManager.mode === 'year') {
+                    const yVal = document.getElementById('rptYearInput').value;
+                    start = new Date(yVal, 0, 1);
+                    end = new Date(yVal, 11, 31);
+                }
+                
+                const dates = [];
+                for (let d = start; d <= end; d.setDate(d.getDate() + 1)) {
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const yyyy = d.getFullYear();
+                    dates.push(`${yyyy}-${mm}-${dd}`);
+                }
+                return dates;
+            },
+            
+            processReport: async () => {
+                const dates = reportManager.generateDateRange();
+                if (dates.length === 0) return utils.showToast('Vui lòng chọn thời gian', 'error');
+                
+                // Show Progress
+                const pContainer = document.getElementById('rptProgress');
+                const pBar = document.getElementById('rptProgressBar');
+                const pText = document.getElementById('rptProgressPct');
+                
+                pContainer.classList.remove('hidden');
+                
+                let allPeople = [];
+                const chunkSize = 5; // Batch 5 days per request to avoid hitting limits too hard
+                
+                try {
+                    for (let i = 0; i < dates.length; i += chunkSize) {
+                        const batchDates = dates.slice(i, i + chunkSize);
+                        const promises = batchDates.map(async dateStr => {
+                            const dateKey = dateStr.replace(/-/g, '');
+                            const snap = await getPublicColl('dailyPlans').doc(dateKey).collection('people').get();
+                            // Inject Date Info
+                            const [y, m, d] = dateStr.split('-');
+                            return snap.docs.map(doc => ({...doc.data(), _reportDate: `${d}/${m}/${y}` }));
+                        });
+                        
+                        const batchResults = await Promise.all(promises);
+                        allPeople = allPeople.concat(batchResults.flat());
+                        
+                        // Update Progress
+                        const pct = Math.round(((i + batchDates.length) / dates.length) * 100);
+                        pBar.style.width = `${pct}%`;
+                        pText.innerText = `${pct}%`;
+                    }
+                    
+                    if(allPeople.length === 0) {
+                         utils.showToast("Không có dữ liệu trong khoảng thời gian này", "warning");
+                         pContainer.classList.add('hidden');
+                         return;
+                    }
+                    
+                    // Generate Excel
+                    reportManager.exportToExcel(allPeople);
+                    
+                } catch(e) {
+                    console.error(e);
+                    utils.showToast("Lỗi tải dữ liệu: " + e.message, "error");
+                } finally {
+                     pContainer.classList.add('hidden');
+                     pBar.style.width = '0%';
+                }
+            },
+            
+            exportToExcel: (data) => {
+                // Sort by Date, then Org, then Name
+                data.sort((a,b) => {
+                    // Simple date compare (DD/MM/YYYY) needs conversion but lexical sort YYYY-MM-DD better.
+                    // Here assuming input order roughly correct or just string sort
+                    return a._reportDate.localeCompare(b._reportDate) || a.orgName.localeCompare(b.orgName);
+                });
+                
+                const exportData = data.map((p, idx) => ({
+                    "STT": idx + 1,
+                    "Ngày đăng ký": p._reportDate,
+                    "Đơn vị": p.orgName,
+                    "Danh số": p.staffNo,
+                    "Họ và tên": p.fullName,
+                    "Chức danh": p.title,
+                    "Nơi đến": p.destination,
+                    "Trọng lượng (Kg)": p.weightKg,
+                    "Hành lý (Kg)": p.luggageKg,
+                    "Hàng hóa (Kg)": p.cargoKg,
+                    "Ghi chú": p.rowNote
+                }));
+                
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.json_to_sheet(exportData);
+                
+                // Auto-width
+                const wscols = [
+                    {wch: 5}, {wch: 12}, {wch: 20}, {wch: 10}, {wch: 25}, 
+                    {wch: 20}, {wch: 15}, {wch: 10}, {wch: 10}, {wch: 10}, {wch: 20}
+                ];
+                ws['!cols'] = wscols;
+
+                XLSX.utils.book_append_sheet(wb, ws, "Báo Cáo");
+                XLSX.writeFile(wb, `BaoCao_XNXL_${new Date().getTime()}.xlsx`);
+                
+                utils.showToast("Đã tải xuống file Excel", "success");
+                reportManager.close();
+            }
+        };
+
         const userModal = {
             open: (userId = null) => {
                 const titleEl = document.getElementById('userModalTitle');
                 if (userId) {
-                    // Edit Mode
                     const user = state.users.find(u => u.id === userId);
                     if (!user) return;
                     document.getElementById('u_id').value = userId;
@@ -588,7 +819,6 @@
                     document.getElementById('u_role').value = user.role;
                     titleEl.innerText = "Sửa thông tin User";
                 } else {
-                    // Create Mode
                     document.getElementById('u_id').value = '';
                     document.getElementById('u_email').value = '';
                     document.getElementById('u_email').disabled = false;
@@ -600,7 +830,6 @@
                     titleEl.innerText = "Thêm User Mới";
                 }
                 userModal.toggleOrgSelect();
-                // Set org based on edit data or default
                 if (userId) {
                     const user = state.users.find(u => u.id === userId);
                     if (user && user.role !== 'dispatcher') {
@@ -1128,6 +1357,7 @@
                 const isDisp = state.userRole === 'dispatcher';
                 document.getElementById('navSettings').classList.toggle('hidden', !isDisp); document.getElementById('btnLock').classList.toggle('hidden', !isDisp);
                 document.getElementById('importOrgSelectWrapper').classList.toggle('hidden', !isDisp); document.getElementById('btnExport').classList.toggle('hidden', !isDisp);
+                document.getElementById('btnReport').classList.toggle('hidden', !isDisp); // Toggle Report Button
             },
             loadOrgs: async () => {
                 // UPDATED PATH: Use public/data/organizations
@@ -1230,32 +1460,17 @@
                 try {
                     const targets = state.currentPlanPeople.filter(p => p.destination === oldName);
                     if (targets.length === 0) return utils.showToast("Không tìm thấy nhân sự nào", "error");
-                    const batch = db.batch(); 
-                    // UPDATED PATH: Use public/data/dailyPlans
-                    const col = getPublicColl('dailyPlans').doc(state.currentDateKey).collection('people');
+                    const batch = db.batch(); const col = getPublicColl('dailyPlans').doc(state.currentDateKey).collection('people');
                     targets.forEach(p => batch.update(col.doc(p.id), { destination: newName.trim(), updatedBy: state.currentUser.email, updatedAt: new Date() }));
                     await batch.commit(); utils.showToast(`Đã đổi tên giàn cho ${targets.length} nhân sự`, 'success');
                 } catch (e) { utils.showToast("Lỗi: " + e.message, "error"); } finally { utils.toggleLoader(false); }
             },
-            deletePerson: async (id) => { 
-                if(!confirm("Xác nhận xóa nhân sự này?")) return;
-                utils.toggleLoader(true, "Đang xóa...");
-                try {
-                    await getPublicColl('dailyPlans').doc(state.currentDateKey).collection('people').doc(id).delete();
-                    utils.showToast("Đã xóa thành công", "success");
-                } catch(e) {
-                    utils.showToast("Lỗi: "+e.message, "error");
-                } finally {
-                    utils.toggleLoader(false);
-                }
-            },
+            deletePerson: async (id) => { if(confirm("Xóa nhân sự này?")) getPublicColl('dailyPlans').doc(state.currentDateKey).collection('people').doc(id).delete().then(() => utils.showToast("Đã xóa", "success")).catch(e => utils.showToast("Lỗi: "+e.message, "error")); },
             deleteAllPeople: async () => {
                 if(state.currentPlanPeople.length === 0 || !confirm("CẢNH BÁO: Xóa TOÀN BỘ danh sách?") || !confirm("Chắc chắn xóa?")) return;
                 utils.toggleLoader(true, 'Đang xóa...');
                 try {
-                    const batch = db.batch(); 
-                    // UPDATED PATH: Use public/data/dailyPlans
-                    const col = getPublicColl('dailyPlans').doc(state.currentDateKey).collection('people');
+                    const batch = db.batch(); const col = getPublicColl('dailyPlans').doc(state.currentDateKey).collection('people');
                     let targets = state.currentPlanPeople; if(state.userRole !== 'dispatcher') targets = targets.filter(p => p.orgId === state.userOrgId);
                     targets.forEach(p => batch.delete(col.doc(p.id))); await batch.commit(); utils.showToast(`Đã xóa ${targets.length} nhân sự`, "success");
                 } catch(e) { utils.showToast("Lỗi: " + e.message, "error"); } finally { utils.toggleLoader(false); }
@@ -1268,7 +1483,6 @@
             toggleLockPlan: async () => {
                 if(state.userRole !== 'dispatcher') return;
                 const s = state.isPlanLocked ? 'Draft' : 'Locked';
-                // UPDATED PATH: Use public/data/dailyPlans
                 await getPublicColl('dailyPlans').doc(state.currentDateKey).set({ status: s, lockedAt: new Date(), lockedBy: state.currentUser.email }, { merge: true });
                 utils.showToast(`Đã ${s === 'Locked' ? 'KHÓA' : 'MỞ'} ngày đăng ký`, 'success');
                 app.loadPlan(); // Manually reload status
@@ -1278,16 +1492,8 @@
             renderOrgList: () => { document.getElementById('orgList').innerHTML = state.orgs.map(o => `<li class="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100 text-xs"><span>${o.name}</span><button onclick="app.deleteOrg('${o.id}')" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button></li>`).join(''); },
             addOrg: async () => { const n = document.getElementById('newOrgName').value.trim(); if(n) { await getPublicColl('organizations').doc(n).set({name:n, createdAt: new Date()}); document.getElementById('newOrgName').value=''; app.loadOrgs(); app.renderOrgList(); } },
             deleteOrg: async (id) => { if(confirm('Xóa đơn vị này?')) { await getPublicColl('organizations').doc(id).delete(); app.loadOrgs(); app.renderOrgList(); } },
-            loadSignatureConfig: async () => { 
-                // UPDATED PATH: Use public/data/settings
-                const d = await getPublicColl('settings').doc('signature').get(); 
-                if(d.exists) { const v = d.data(); document.getElementById('sigApprover').value = v.approver||''; document.getElementById('sigApproverName').value = v.approverName||''; } 
-            },
-            saveSettings: async () => { 
-                // UPDATED PATH: Use public/data/settings
-                await getPublicColl('settings').doc('signature').set({ approver: document.getElementById('sigApprover').value, approverName: document.getElementById('sigApproverName').value }); 
-                utils.showToast('Đã lưu cấu hình'); 
-            },
+            loadSignatureConfig: async () => { const d = await getPublicColl('settings').doc('signature').get(); if(d.exists) { const v = d.data(); document.getElementById('sigApprover').value = v.approver||''; document.getElementById('sigApproverName').value = v.approverName||''; } },
+            saveSettings: async () => { await getPublicColl('settings').doc('signature').set({ approver: document.getElementById('sigApprover').value, approverName: document.getElementById('sigApproverName').value }); utils.showToast('Đã lưu cấu hình'); },
             
             generateDocx: async (peopleData, dateDisplayString) => {
                 let sig = { approver: 'TRƯỞNG BAN TTĐĐSX', approverName: '' };
@@ -1405,7 +1611,7 @@
                     borders: { top: {style: BorderStyle.NONE, size: 0, color: "auto"}, bottom: {style: BorderStyle.NONE, size: 0, color: "auto"}, left: {style: BorderStyle.NONE, size: 0, color: "auto"}, right: {style: BorderStyle.NONE, size: 0, color: "auto"}, insideVertical: {style: BorderStyle.NONE, size: 0, color: "auto"}, insideHorizontal: {style: BorderStyle.NONE, size: 0, color: "auto"} }
                 }));
 
-                const blob = await Packer.toBlob(new Document({ sections: [{ properties: { page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, children }] }));
+                const blob = await Packer.toBlob(new Document({ sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] }));
                 saveAs(blob, `KeHoachDiBien_${dateDisplayString.split('+')[0].trim().replace(/\./g,'_')}_plus.docx`);
             }
         };
