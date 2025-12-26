@@ -2397,13 +2397,16 @@ saveGroupEditModal: async () => {
 
                 // Build people table
                 let tableRows = `
-                    <tr>
-                        <th style="border:1px solid #000; padding:3mm; width:10mm; text-align:center;">Số TT</th>
-                        <th style="border:1px solid #000; padding:3mm; text-align:center;">Họ và tên</th>
-                        <th style="border:1px solid #000; padding:3mm; text-align:center;">Chức danh</th>
-                        <th style="border:1px solid #000; padding:3mm; text-align:center;">Đơn vị</th>
-                        <th style="border:1px solid #000; padding:3mm; width:22mm; text-align:center;">Danh số</th>
-                    </tr>
+                    <thead>
+                        <tr>
+                            <th style="border:1px solid #000; padding:3mm; width:10mm; text-align:center;">Số TT</th>
+                            <th style="border:1px solid #000; padding:3mm; text-align:center;">Họ và tên</th>
+                            <th style="border:1px solid #000; padding:3mm; text-align:center;">Chức danh</th>
+                            <th style="border:1px solid #000; padding:3mm; text-align:center;">Đơn vị</th>
+                            <th style="border:1px solid #000; padding:3mm; width:22mm; text-align:center;">Danh số</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                 `;
 
                 destKeys.forEach(dest => {
@@ -2429,6 +2432,10 @@ saveGroupEditModal: async () => {
                     });
                 });
 
+                tableRows += `
+                    </tbody>
+                `;
+
                 const root = document.getElementById('pdfExportRoot') || (() => {
                     const d = document.createElement('div'); d.id = 'pdfExportRoot'; d.className = 'hidden'; document.body.appendChild(d); return d;
                 })();
@@ -2438,6 +2445,12 @@ saveGroupEditModal: async () => {
                     <div id="pdfDoc" style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #000; line-height: 1.25;">
                         <style>
                             @page { size: A4; margin: 12.7mm; }
+                            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                            table { page-break-inside: auto; }
+                            thead { display: table-header-group; }
+                            tfoot { display: table-footer-group; }
+                            tr, td, th { page-break-inside: avoid; break-inside: avoid; page-break-after: auto; }
+                            .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
                         </style>
 
                         <table style="width:100%; border-collapse:collapse; margin-bottom:6mm;">
@@ -2481,6 +2494,7 @@ saveGroupEditModal: async () => {
 
                         <div style="height:8mm;"></div>
 
+                        <div class="avoid-break">
                         <table style="width:100%; border-collapse:collapse;">
                             <tr>
                                 <td style="width:50%; vertical-align:bottom;">
@@ -2503,6 +2517,7 @@ saveGroupEditModal: async () => {
                                 </td>
                             </tr>
                         </table>
+                        </div>
                     </div>
                 `;
 
@@ -2513,10 +2528,10 @@ saveGroupEditModal: async () => {
                         const opt = {
                             margin: 12.7,
                             filename,
-                            image: { type: 'jpeg', quality: 0.98 },
-                            html2canvas: { scale: 2, useCORS: true },
-                            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                            pagebreak: { mode: ['css', 'legacy'] }
+                            image: { type: 'jpeg', quality: 1.0 },
+                            html2canvas: { scale: 4, useCORS: true, letterRendering: true, backgroundColor: '#ffffff' },
+                            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: false },
+                            pagebreak: { mode: ['css','legacy'], avoid: ['tr', '.avoid-break'] }
                         };
                         await html2pdf().set(opt).from(root.querySelector('#pdfDoc')).save();
                     } else {
