@@ -575,7 +575,7 @@
 
     <!-- AUDIT LOG MODAL -->
     <div id="auditModal" class="fixed inset-0 bg-black/50 z-[65] hidden items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-6xl overflow-hidden border border-slate-200">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-6xl overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
             <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                 <div>
                     <div class="text-lg font-extrabold text-slate-800"><i class="fas fa-clipboard-list text-blue-600 mr-2"></i>Nhật ký thao tác</div>
@@ -583,7 +583,7 @@
                 </div>
                 <button onclick="auditModal.close()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2">&times;</button>
             </div>
-            <div class="p-4 space-y-3">
+            <div class="p-4 space-y-3 overflow-y-auto flex-1">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div class="md:col-span-2">
                         <input id="auditSearch" type="text" placeholder="Tìm theo user / danh số / tên / giàn / hành động..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
@@ -606,7 +606,7 @@
                         <button onclick="auditModal.exportCSV()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-2 rounded-lg text-sm font-bold shadow-sm"><i class="fas fa-file-csv mr-2 text-slate-500"></i>CSV</button>
                     </div>
                 </div>
-                <div class="overflow-auto border border-slate-200 rounded-lg">
+                <div class="overflow-auto border border-slate-200 rounded-lg max-h-[55vh]">
                     <table class="min-w-full divide-y divide-slate-200 text-xs bg-white">
                         <thead class="bg-slate-50">
                             <tr>
@@ -619,6 +619,14 @@
                         </thead>
                         <tbody id="auditTableBody" class="divide-y divide-slate-100"></tbody>
                     </table>
+                </div>
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <div class="text-xs text-slate-500">Hiển thị <span id="auditRange" class="font-bold text-slate-700">0-0</span> / <span id="auditTotal" class="font-bold text-slate-700">0</span></div>
+                    <div class="flex items-center gap-2 justify-end">
+                        <button id="auditPrevBtn" class="px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-bold hover:bg-slate-50">Trước</button>
+                        <div id="auditPageLabel" class="text-sm font-bold text-slate-700">Trang 1/1</div>
+                        <button id="auditNextBtn" class="px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-bold hover:bg-slate-50">Sau</button>
+                    </div>
                 </div>
                 <div class="text-[11px] text-slate-400">Hiển thị tối đa 200 dòng gần nhất (lọc tại máy để tránh lỗi index Firestore).</div>
             </div>
@@ -848,14 +856,20 @@
 
         const auditModal = {
             _cache: [],
+            _page: 1,
+            _pageSize: 10,
             open() {
                 if (state.userRole !== 'dispatcher') return utils.showToast('Chỉ Admin mới xem được nhật ký', 'error');
                 const el = document.getElementById('auditModal');
                 el.classList.remove('hidden');
                 el.classList.add('flex');
                 // Wire inputs
-                document.getElementById('auditSearch').oninput = () => auditModal.render();
-                document.getElementById('auditActionFilter').onchange = () => auditModal.render();
+                document.getElementById('auditSearch').oninput = () => { auditModal._page = 1; auditModal.render(); };
+                document.getElementById('auditActionFilter').onchange = () => { auditModal._page = 1; auditModal.render(); };
+                const prevBtn = document.getElementById('auditPrevBtn');
+                const nextBtn = document.getElementById('auditNextBtn');
+                if (prevBtn) prevBtn.onclick = () => { auditModal._page = Math.max(1, (auditModal._page || 1) - 1); auditModal.render(); };
+                if (nextBtn) nextBtn.onclick = () => { auditModal._page = (auditModal._page || 1) + 1; auditModal.render(); };
                 if (auditModal._cache.length === 0) auditModal.refresh();
                 else auditModal.render();
             },
@@ -869,6 +883,7 @@
                 try {
                     const snap = await getPublicColl('auditLogs').orderBy('createdAt', 'desc').limit(200).get();
                     auditModal._cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    auditModal._page = 1;
                     auditModal.render();
                 } catch (e) {
                     console.error(e);
@@ -896,40 +911,70 @@
                     EXPORT_DOCX: 'Export Word'};
                 return map[a] || a || '';
             },
-            render() {
-                const q = (document.getElementById('auditSearch').value || '').toLowerCase().trim();
-                const act = document.getElementById('auditActionFilter').value || '';
-                const rows = (auditModal._cache || []).filter(r => {
-                    if (act && r.action !== act) return false;
-                    if (!q) return true;
-                    const hay = [
-                        r.user,
-                        r.action,
-                        r.dateKey,
-                        JSON.stringify(r.details || {})
-                    ].join(' ').toLowerCase();
-                    return hay.includes(q);
-                });
 
-                const tb = document.getElementById('auditTableBody');
-                if (rows.length === 0) {
-                    tb.innerHTML = `<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400 italic">Không có dữ liệu</td></tr>`;
-                    return;
-                }
-                tb.innerHTML = rows.map(r => {
-                    const details = r.details || {};
-                    const detailText = auditModal._prettyDetails(details);
-                    return `
-                        <tr>
-                            <td class="px-3 py-2 text-slate-600 font-mono">${auditModal._fmt(r.createdAt)}</td>
-                            <td class="px-3 py-2 text-slate-700">${r.user || ''}</td>
-                            <td class="px-3 py-2 font-bold text-blue-700">${auditModal._actionLabel(r.action)}</td>
-                            <td class="px-3 py-2 text-slate-600 font-mono">${r.dateKey || ''}</td>
-                            <td class="px-3 py-2 text-slate-600">${detailText}</td>
-                        </tr>
-                    `;
-                }).join('');
-            },
+render() {
+    const q = (document.getElementById('auditSearch').value || '').toLowerCase().trim();
+    const act = document.getElementById('auditActionFilter').value || '';
+    const all = (auditModal._cache || []).filter(r => {
+        if (act && r.action !== act) return false;
+        if (!q) return true;
+        const hay = [
+            r.user,
+            r.action,
+            r.dateKey,
+            JSON.stringify(r.details || {})
+        ].join(' ').toLowerCase();
+        return hay.includes(q);
+    });
+
+    const total = all.length;
+    const pageSize = auditModal._pageSize || 10;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    auditModal._page = Math.min(Math.max(1, auditModal._page || 1), totalPages);
+
+    const startIdx = (auditModal._page - 1) * pageSize;
+    const endIdx = Math.min(startIdx + pageSize, total);
+    const pageRows = all.slice(startIdx, endIdx);
+
+    // Update paging UI
+    const rangeEl = document.getElementById('auditRange');
+    const totalEl = document.getElementById('auditTotal');
+    const pageEl = document.getElementById('auditPageLabel');
+    const prevBtn = document.getElementById('auditPrevBtn');
+    const nextBtn = document.getElementById('auditNextBtn');
+
+    if (rangeEl) rangeEl.textContent = total === 0 ? '0-0' : `${startIdx + 1}-${endIdx}`;
+    if (totalEl) totalEl.textContent = String(total);
+    if (pageEl) pageEl.textContent = `Trang ${auditModal._page}/${totalPages}`;
+    if (prevBtn) {
+        prevBtn.disabled = auditModal._page <= 1;
+        prevBtn.classList.toggle('opacity-50', prevBtn.disabled);
+    }
+    if (nextBtn) {
+        nextBtn.disabled = auditModal._page >= totalPages;
+        nextBtn.classList.toggle('opacity-50', nextBtn.disabled);
+    }
+
+    const tb = document.getElementById('auditTableBody');
+    if (total === 0) {
+        tb.innerHTML = `<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400 italic">Không có dữ liệu</td></tr>`;
+        return;
+    }
+
+    tb.innerHTML = pageRows.map(r => {
+        const details = r.details || {};
+        const detailText = auditModal._prettyDetails(details);
+        return `
+            <tr>
+                <td class="px-3 py-2 text-slate-600 font-mono">${auditModal._fmt(r.createdAt)}</td>
+                <td class="px-3 py-2 text-slate-700">${r.user || ''}</td>
+                <td class="px-3 py-2 font-bold text-blue-700">${auditModal._actionLabel(r.action)}</td>
+                <td class="px-3 py-2 text-slate-600 font-mono">${r.dateKey || ''}</td>
+                <td class="px-3 py-2 text-slate-600">${detailText}</td>
+            </tr>
+        `;
+    }).join('');
+},
             _prettyDetails(details) {
                 try {
                     // Keep details short and readable
@@ -1402,9 +1447,34 @@
                             if (rows[7] && rows[7][1]) { const val = rows[7][1].toString().trim(); const m = val.match(/\d{3}-\d{2}(?:BS\d+)?/gi); nvsx = m ? [...new Set(m)].join('; ') : val.replace(/^.*:\s*/, ''); }
                             if (rows[8] && rows[8][1]) task = rows[8][1].toString().trim().replace(/^.*:\s*/, '');
 
-                            // Find Header
-                            for(let i=0; i<Math.min(rows.length, 25); i++) { if(rows[i].join(' ').toLowerCase().includes('họ và tên')) headerRowIndex = i; }
-                            if(headerRowIndex === -1) return reject(new Error("Không tìm thấy dòng tiêu đề bảng"));
+                            // Find Header (robust)
+                            const __normHeader = (v) => ((v === undefined || v === null) ? '' : v).toString().trim().toLowerCase()
+                                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                                .replace(/\s+/g, ' ');
+                            const __rowHas = (cells, keywords) => cells.some(c => keywords.some(k => c.includes(k)));
+                            const __rowScore = (row) => {
+                                const cells = (row || []).map(__normHeader).filter(Boolean);
+                                if (cells.length === 0) return 0;
+                                let score = 0;
+                                if (__rowHas(cells, ['ho va ten','ho ten','ten','full name','fullname','name'])) score++;
+                                if (__rowHas(cells, ['danh so','msnv','ma nv','ma so','staff no','staffno','employee','emp no'])) score++;
+                                if (__rowHas(cells, ['don vi','xuong','org','department','bo phan'])) score++;
+                                if (__rowHas(cells, ['chuc danh','chuc vu','position','title'])) score++;
+                                if (__rowHas(cells, ['stt','no.','so tt'])) score++;
+                                return score;
+                            };
+
+                            for (let i = 0; i < Math.min(rows.length, 80); i++) {
+                                const sc = __rowScore(rows[i]);
+                                // Require at least "Họ và tên" + one more important column
+                                if (sc >= 2 && __rowHas((rows[i] || []).map(__normHeader), ['ho va ten','ho ten'])) {
+                                    headerRowIndex = i;
+                                    break;
+                                }
+                            }
+                            if (headerRowIndex === -1) {
+                                return reject(new Error("Không tìm thấy dòng tiêu đề bảng. Hãy kiểm tra file Excel có các cột như: 'Họ và tên', 'Danh số/MSNV', 'Đơn vị/Xưởng'..."));
+                            }
 
                             const headers = rows[headerRowIndex].map(h => h.toString().toLowerCase().trim());
                             const colMap = {
