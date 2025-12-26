@@ -1713,6 +1713,26 @@ render() {
             utils.toggleLoader(false);
         }
     }
+
+,
+    confirmPdf: async () => {
+        if (!exportManager.pending) return;
+
+        utils.toggleLoader(true, "Đang tạo PDF...");
+        try {
+            await app.generatePdf(exportManager.pending.peopleData, exportManager.pending.dateDisplayString);
+            audit.log('EXPORT_PDF', { count: exportManager.pending.peopleData.length, reason: exportManager.pending.dateDisplayString });
+            utils.showToast("Đã xuất PDF thành công", "success");
+            exportManager.pending = null;
+            exportManager.closePreview();
+        } catch (e) {
+            console.error(e);
+            utils.showToast("Lỗi: " + e.message, "error");
+        } finally {
+            utils.toggleLoader(false);
+        }
+    }
+
 };
 
         const app = {
@@ -1776,6 +1796,20 @@ render() {
                         const n = parseInt(document.getElementById('statWarnings')?.innerText || '0', 10);
                         if (n > 0) warningCenter.open();
                         else utils.showToast('Không có cảnh báo', 'success');
+                    });
+                }
+
+                // Responsive (mobile card / desktop table): re-render when screen size changes
+                if (!window.__planResizeBound) {
+                    window.__planResizeBound = true;
+                    let __rt;
+                    window.addEventListener('resize', () => {
+                        clearTimeout(__rt);
+                        __rt = setTimeout(() => {
+                            try {
+                                app.renderPlanTable(state.currentPlanPeople || []);
+                            } catch (e) { /* ignore */ }
+                        }, 200);
                     });
                 }
 
@@ -1879,9 +1913,11 @@ document.getElementById('btnLock').classList.toggle('hidden', !isDisp);
 
                 const grouped = viewPeople.reduce((acc, p) => { const k = utils.destinationDisplay(p.destination); if(!acc[k]) acc[k]=[]; acc[k].push(p); return acc; }, {});
                 let html = '';
+                                const isMobile = !!(window.matchMedia && window.matchMedia('(max-width: 767px)').matches);
+
                 Object.keys(grouped).sort().forEach(dest => {
                     const group = grouped[dest];
-                                        const meta = utils.getGroupFinalMeta(group);
+                    const meta = utils.getGroupFinalMeta(group);
                     const allNvsx = meta.nvsxStr;
                     const taskLines = meta.taskLines;
                     const isInconsistent = !!meta.inconsistent;
@@ -1891,32 +1927,138 @@ document.getElementById('btnLock').classList.toggle('hidden', !isDisp);
 
                     const gid = 'task_' + btoa(unescape(encodeURIComponent(dest))).replace(/=+/g,'').replace(/[^a-zA-Z0-9]/g,'');
 
-                    const safeDest = dest.replace(/'/g, "\\'");
-                    const editBtn = state.userRole === 'dispatcher' ? `<button onclick="app.editDestination('${safeDest}')" class="ml-2 text-slate-400 hover:text-blue-600 transition"><i class="fas fa-edit"></i></button>` : '';
+                    const safeDest = dest.replace(/'/g, "\'");
+                    const editBtn = state.userRole === 'dispatcher'
+                        ? `<button onclick="app.editDestination('${safeDest}')" class="ml-2 text-slate-400 hover:text-blue-600 transition"><i class="fas fa-edit"></i></button>`
+                        : '';
 
-                    html += `<div class="bg-blue-50/50 px-4 py-3 border-b border-blue-100 sticky top-0 z-10 backdrop-blur-sm shadow-sm"><div class="flex justify-between items-start"><div class="w-4/5"><div class="font-bold text-blue-800 text-base flex items-center"><i class="fas fa-map-marker-alt mr-2 text-blue-500"></i> ${dest} ${editBtn}</div><div class="mt-1 text-xs text-slate-600 space-y-1">\n                    ${isInconsistent ? `<div class=\"text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2\">Dữ liệu không đồng nhất, hãy bấm <b>Sửa giàn/NVSX/CV</b> để chốt lại (vẫn có thể Export).</div>` : ``}<div><span class="font-bold">NVSX:</span> <span class="break-words">${allNvsx || '--'}</span></div><div class="flex items-start"><div class="flex items-start">
-                                <span class="font-bold mr-1 whitespace-nowrap">Công việc:</span>
-                                <div class="flex-1">
-                                    <div id="${gid}" class="js-task-block text-slate-700 leading-relaxed" data-lines="${taskLines.length}">${taskDisplayHtml || '--'}</div>
-                                    <button type="button" class="js-task-toggle hidden mt-1 text-[11px] text-blue-700 font-bold hover:underline" data-target="${gid}">Mở rộng</button>
+                    html += `
+                        <div class="bg-blue-50/50 px-4 py-3 border-b border-blue-100 sticky top-0 z-10 backdrop-blur-sm shadow-sm">
+                            <div class="flex justify-between items-start">
+                                <div class="w-4/5">
+                                    <div class="font-bold text-blue-800 text-base flex items-center">
+                                        <i class="fas fa-map-marker-alt mr-2 text-blue-500"></i> ${dest} ${editBtn}
+                                    </div>
+                                    <div class="mt-1 text-xs text-slate-600 space-y-1">
+                                        ${isInconsistent ? `<div class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">Dữ liệu không đồng nhất, hãy bấm <b>Sửa giàn/NVSX/CV</b> để chốt lại (vẫn có thể Export).</div>` : ``}
+                                        <div><span class="font-bold">NVSX:</span> <span class="break-words">${allNvsx || '--'}</span></div>
+                                        <div class="flex items-start">
+                                            <span class="font-bold mr-1 whitespace-nowrap">Công việc:</span>
+                                            <div class="flex-1">
+                                                <div id="${gid}" class="js-task-block text-slate-700 leading-relaxed" data-lines="${taskLines.length}">${taskDisplayHtml || '--'}</div>
+                                                <button type="button" class="js-task-toggle hidden mt-1 text-[11px] text-blue-700 font-bold hover:underline" data-target="${gid}">Mở rộng</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div></div></div></div><span class="text-xs bg-white text-blue-600 px-2 py-1 rounded font-bold border border-blue-100">${group.length} người</span></div></div><div class="overflow-x-auto"><table class="min-w-full divide-y divide-slate-100 text-xs"><thead><tr><th class="px-3 py-3 text-center w-10">STT</th><th class="px-3 py-3 text-left w-20">Danh số</th><th class="px-3 py-3 text-left w-40">Họ tên</th><th class="px-3 py-3 text-left w-40">Chức danh / Đơn vị</th><th class="px-3 py-3 text-left w-32">Ngày sinh / Nơi sinh</th><th class="px-3 py-3 text-left w-24">SĐT</th><th class="px-3 py-3 text-left w-32">CCCD / Hết hạn</th><th class="px-3 py-3 text-center w-16">Cân nặng</th><th class="px-3 py-3 text-center w-16">Hành lý</th><th class="px-3 py-3 text-center w-16">Hàng hóa</th><th class="px-3 py-3 text-left w-32">Ghi chú</th><th class="px-3 py-3 text-center sticky right-0 bg-slate-50 w-20 shadow-l-sm">Sửa</th></tr></thead><tbody class="bg-white divide-y divide-slate-50">`;
-                    
-                    group.sort((a,b) => (a.nvsxNo||'').localeCompare(b.nvsxNo||'')).forEach((p, idx) => {
-                        const warnClass = (p.warnings&&p.warnings.length>0) ? 'bg-red-50/50' : '';
-                        const warnIcon = (p.warnings&&p.warnings.length>0) ? `<i class="fas fa-exclamation-triangle text-red-500 ml-1" title="${p.warnings.join(', ')}"></i>` : '';
-                        const canEdit = state.userRole === 'dispatcher' || (!state.isPlanLocked && p.orgId === state.userOrgId);
-                        let updatedInfo = '';
-                        if(p.updatedAt || p.createdAt) {
-                            const t = p.updatedAt ? p.updatedAt.seconds*1000 : p.createdAt.seconds*1000;
-                            const u = (p.updatedBy || p.importedBy || '').split('@')[0];
-                            updatedInfo = `<span class="text-[9px] text-slate-400 font-mono block mt-1 leading-tight">${u} ${utils.formatTimeShort(new Date(t))}</span>`;
-                        }
-                        const actionBtns = canEdit ? `<div class="flex flex-col items-center justify-center"><div class="flex space-x-2 mb-1"><button onclick="editModal.open('${p.id}')" class="text-blue-500 hover:text-blue-700 transition"><i class="fas fa-pen"></i></button><button onclick="app.deletePerson('${p.id}')" class="text-red-400 hover:text-red-600 transition"><i class="fas fa-trash-alt"></i></button></div>${updatedInfo}</div>` : `<div class="flex flex-col items-center"><span class="text-slate-300"><i class="fas fa-lock"></i></span>${updatedInfo}</div>`;
+                                <span class="text-xs bg-white text-blue-600 px-2 py-1 rounded font-bold border border-blue-100">${group.length} người</span>
+                            </div>
+                        </div>
+                    `;
 
-                        html += `<tr class="${warnClass} hover:bg-blue-50/30 transition duration-75 group"><td class="px-3 py-2 text-slate-400 text-center font-mono">${idx+1}</td><td class="px-3 py-2 text-slate-600 font-mono">${p.staffNo}</td><td class="px-3 py-2 font-semibold text-slate-700">${p.fullName}</td><td class="px-3 py-2 text-slate-600"><div class="font-medium">${p.title||''}</div><div class="text-[10px] text-slate-400 uppercase mt-0.5 font-bold tracking-wide">${p.orgName||'-'}</div></td><td class="px-3 py-2 text-slate-600"><div class="font-mono text-xs">${p.dob||'-'}</div><div class="text-[10px] text-slate-400 mt-0.5">${p.pob||''}</div></td><td class="px-3 py-2 text-slate-600 font-mono">${p.phone||'-'}</td><td class="px-3 py-2 text-slate-600"><div class="font-mono text-xs">${p.idNo||'-'}</div><div class="text-[10px] ${p.isIdExpiring?'text-red-600 font-bold':'text-slate-400'} mt-0.5">${p.idExpiryDate||''}${warnIcon}</div></td><td class="px-3 py-2 text-slate-600 text-center">${p.weightKg||0}</td><td class="px-3 py-2 text-slate-600 text-center">${p.luggageKg||0}</td><td class="px-3 py-2 text-slate-600 text-center">${p.cargoKg||0}</td><td class="px-3 py-2 text-slate-500 italic text-[11px] break-words max-w-[150px]">${p.rowNote||''}</td><td class="px-3 py-2 text-center sticky right-0 bg-white group-hover:bg-blue-50/30 shadow-l-sm border-l border-slate-50">${actionBtns}</td></tr>`;
-                    });
-                    html += `</tbody></table></div>`;
+                    const sortedGroup = [...group].sort((a,b) => (a.nvsxNo||'').localeCompare(b.nvsxNo||'') || (a.staffNo||'').localeCompare(b.staffNo||''));
+
+                    if (isMobile) {
+                        html += `<div class="bg-white divide-y divide-slate-100">`;
+                        sortedGroup.forEach((p, idx) => {
+                            const warn = (p.warnings && p.warnings.length > 0);
+                            const warnIcon = warn ? `<i class="fas fa-exclamation-triangle text-red-500 ml-1" title="${(p.warnings||[]).join(', ')}"></i>` : '';
+                            const canEdit = state.userRole === 'dispatcher' || (!state.isPlanLocked && p.orgId === state.userOrgId);
+
+                            let updatedInfo = '';
+                            if (p.updatedAt || p.createdAt) {
+                                const t = p.updatedAt ? p.updatedAt.seconds*1000 : p.createdAt.seconds*1000;
+                                const u = (p.updatedBy || p.importedBy || '').split('@')[0];
+                                updatedInfo = `<div class="text-[10px] text-slate-400 font-mono mt-1">${u} ${utils.formatTimeShort(new Date(t))}</div>`;
+                            }
+
+                            const actionBtns = canEdit
+                                ? `<div class="flex items-center gap-3"><button onclick="editModal.open('${p.id}')" class="text-blue-600 hover:text-blue-800"><i class="fas fa-pen"></i></button><button onclick="app.deletePerson('${p.id}')" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button></div>`
+                                : `<div class="text-slate-300"><i class="fas fa-lock"></i></div>`;
+
+                            html += `
+                                <div class="p-3 ${warn ? 'bg-red-50/40' : ''}">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <div class="flex items-center gap-2">
+                                                <div class="text-xs text-slate-400 font-mono">${idx+1}</div>
+                                                <div class="font-bold text-slate-800 truncate">${escHtml(p.fullName || '')}</div>
+                                            </div>
+
+                                            <div class="mt-0.5 text-xs text-slate-600 flex flex-wrap gap-x-3 gap-y-1">
+                                                <div><span class="font-semibold">Danh số:</span> <span class="font-mono">${escHtml(p.staffNo || '')}</span></div>
+                                                <div><span class="font-semibold">Chức danh:</span> ${escHtml(p.title || '')}</div>
+                                            </div>
+
+                                            <div class="mt-0.5 text-xs text-slate-600 flex flex-wrap gap-x-3 gap-y-1">
+                                                <div><span class="font-semibold">Đơn vị:</span> ${escHtml(p.orgName || '-')}</div>
+                                                <div><span class="font-semibold">SĐT:</span> <span class="font-mono">${escHtml(p.phone || '-')}</span></div>
+                                            </div>
+
+                                            <div class="mt-0.5 text-[11px] text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
+                                                <div><span class="font-semibold">CCCD:</span> <span class="font-mono">${escHtml(p.idNo || '-')}</span>${warnIcon}</div>
+                                                <div><span class="font-semibold">Hết hạn:</span> <span class="${p.isIdExpiring?'text-red-600 font-bold':'text-slate-500'}">${escHtml(p.idExpiryDate || '')}</span></div>
+                                            </div>
+
+                                            ${p.rowNote ? `<div class="mt-1 text-[11px] italic text-slate-500 break-words"><span class="font-semibold not-italic">Ghi chú:</span> ${escHtml(p.rowNote)}</div>` : ``}
+                                            ${updatedInfo}
+                                        </div>
+
+                                        <div class="flex flex-col items-end gap-2 flex-none">
+                                            ${actionBtns}
+                                            <div class="text-[11px] text-slate-500 text-right">
+                                                <div><span class="font-semibold">KG:</span> ${escHtml(p.weightKg||0)}</div>
+                                                <div><span class="font-semibold">HL:</span> ${escHtml(p.luggageKg||0)} | <span class="font-semibold">HH:</span> ${escHtml(p.cargoKg||0)}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        html += `</div>`;
+                    } else {
+                        html += `
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-slate-100 text-xs">
+                                    <thead>
+                                        <tr>
+                                            <th class="px-3 py-3 text-center w-10">STT</th>
+                                            <th class="px-3 py-3 text-left w-20">Danh số</th>
+                                            <th class="px-3 py-3 text-left w-40">Họ tên</th>
+                                            <th class="px-3 py-3 text-left w-40">Chức danh / Đơn vị</th>
+                                            <th class="px-3 py-3 text-left w-32">Ngày sinh / Nơi sinh</th>
+                                            <th class="px-3 py-3 text-left w-24">SĐT</th>
+                                            <th class="px-3 py-3 text-left w-32">CCCD / Hết hạn</th>
+                                            <th class="px-3 py-3 text-center w-16">Cân nặng</th>
+                                            <th class="px-3 py-3 text-center w-16">Hành lý</th>
+                                            <th class="px-3 py-3 text-center w-16">Hàng hóa</th>
+                                            <th class="px-3 py-3 text-left w-32">Ghi chú</th>
+                                            <th class="px-3 py-3 text-center sticky right-0 bg-slate-50 w-20 shadow-l-sm">Sửa</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-slate-50">
+                        `;
+
+                        sortedGroup.forEach((p, idx) => {
+                            const warnClass = (p.warnings&&p.warnings.length>0) ? 'bg-red-50/50' : '';
+                            const warnIcon = (p.warnings&&p.warnings.length>0) ? `<i class="fas fa-exclamation-triangle text-red-500 ml-1" title="${p.warnings.join(', ')}"></i>` : '';
+                            const canEdit = state.userRole === 'dispatcher' || (!state.isPlanLocked && p.orgId === state.userOrgId);
+                            let updatedInfo = '';
+                            if(p.updatedAt || p.createdAt) {
+                                const t = p.updatedAt ? p.updatedAt.seconds*1000 : p.createdAt.seconds*1000;
+                                const u = (p.updatedBy || p.importedBy || '').split('@')[0];
+                                updatedInfo = `<span class="text-[9px] text-slate-400 font-mono block mt-1 leading-tight">${u} ${utils.formatTimeShort(new Date(t))}</span>`;
+                            }
+                            const actionBtns = canEdit ? `<div class="flex flex-col items-center justify-center"><div class="flex space-x-2 mb-1"><button onclick="editModal.open('${p.id}')" class="text-blue-500 hover:text-blue-700 transition"><i class="fas fa-pen"></i></button><button onclick="app.deletePerson('${p.id}')" class="text-red-400 hover:text-red-600 transition"><i class="fas fa-trash-alt"></i></button></div>${updatedInfo}</div>` : `<div class="flex flex-col items-center"><span class="text-slate-300"><i class="fas fa-lock"></i></span>${updatedInfo}</div>`;
+                            html += `<tr class="${warnClass} hover:bg-blue-50/30 transition duration-75 group"><td class="px-3 py-2 text-slate-400 text-center font-mono">${idx+1}</td><td class="px-3 py-2 text-slate-600 font-mono">${p.staffNo}</td><td class="px-3 py-2 font-semibold text-slate-700">${p.fullName}</td><td class="px-3 py-2 text-slate-600"><div class="font-medium">${p.title||''}</div><div class="text-[10px] text-slate-400 uppercase mt-0.5 font-bold tracking-wide">${p.orgName||'-'}</div></td><td class="px-3 py-2 text-slate-600"><div class="font-mono text-xs">${p.dob||'-'}</div><div class="text-[10px] text-slate-400 mt-0.5">${p.pob||''}</div></td><td class="px-3 py-2 text-slate-600 font-mono">${p.phone||'-'}</td><td class="px-3 py-2 text-slate-600"><div class="font-mono text-xs">${p.idNo||'-'}</div><div class="text-[10px] ${p.isIdExpiring?'text-red-600 font-bold':'text-slate-400'} mt-0.5">${p.idExpiryDate||''}${warnIcon}</div></td><td class="px-3 py-2 text-slate-600 text-center">${p.weightKg||0}</td><td class="px-3 py-2 text-slate-600 text-center">${p.luggageKg||0}</td><td class="px-3 py-2 text-slate-600 text-center">${p.cargoKg||0}</td><td class="px-3 py-2 text-slate-500 italic text-[11px] break-words max-w-[150px]">${p.rowNote||''}</td><td class="px-3 py-2 text-center sticky right-0 bg-white group-hover:bg-blue-50/30 shadow-l-sm border-l border-slate-50">${actionBtns}</td></tr>`;
+                        });
+
+                        html += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                    }
                 });
                 container.innerHTML = html;
                 setTimeout(() => { try { app.initTaskToggles(); } catch(e){} }, 0);
@@ -2206,6 +2348,192 @@ saveGroupEditModal: async () => {
 
                 const blob = await Packer.toBlob(new Document({ sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] }));
                 saveAs(blob, `KeHoachDiBien_${dateDisplayString.split('+')[0].trim().replace(/\./g,'_')}_plus.docx`);
+            },
+                        generatePdf: async (peopleData, dateDisplayString) => {
+                const canAutoPdf = (typeof html2pdf !== 'undefined');
+                // If html2pdf isn't available (offline/CDN blocked), we will fallback to print-to-PDF.
+
+                let sig = { approver: 'TRƯỞNG BAN TTĐĐSX', approverName: '' };
+                try {
+                    const sigDoc = await getPublicColl('settings').doc('signature').get();
+                    if (sigDoc.exists) sig = sigDoc.data();
+                } catch(e) { /* ignore */ }
+
+                const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                const today = new Date();
+                const dd = String(today.getDate()).padStart(2,'0');
+                const mm = String(today.getMonth()+1).padStart(2,'0');
+                const yyyy = today.getFullYear();
+
+                const people = [...peopleData];
+                people.sort((a, b) => (a.destination||'').localeCompare(b.destination||'') || (a.nvsxNo||'').localeCompare(b.nvsxNo||'') || (a.orgName||'').localeCompare(b.orgName||''));
+                const grouped = people.reduce((acc, p) => { const k = p.destination || 'KHÁC'; (acc[k] = acc[k] || []).push(p); return acc; }, {});
+
+                const destKeys = Object.keys(grouped);
+                const destList = destKeys.join(', ');
+
+                // Build nhiệm vụ section
+                let tasksHtml = '';
+                destKeys.forEach(dest => {
+                    const group = grouped[dest];
+                    const meta = utils.getGroupFinalMeta(group);
+                    const nvsx = meta.nvsxStr;
+                    const lines = meta.taskLines || [];
+                    tasksHtml += `
+                        <div style="margin-left: 10mm; margin-top: 2mm;">
+                            <div><span style="font-weight:bold;">- ${esc(dest)}:</span></div>
+                            ${nvsx ? `<div style="margin-left: 6mm;">+ NVSX: ${esc(nvsx)}</div>` : ``}
+                            ${lines.length ? `<div style="margin-left: 6mm;">+ Nội dung công việc:</div>` : ``}
+                            ${lines.map(l => {
+                                let x = (l||'').trim();
+                                if (!x) return '';
+                                if (/^\d+[\)\.]/.test(x)) x = x.replace(/^\d+[\)\.]\s*/, '- ');
+                                else if (!x.startsWith('-')) x = '- ' + x;
+                                return `<div style="margin-left: 12mm;">${esc(x)}</div>`;
+                            }).join('')}
+                        </div>
+                    `;
+                });
+
+                // Build people table
+                let tableRows = `
+                    <tr>
+                        <th style="border:1px solid #000; padding:3mm; width:10mm; text-align:center;">Số TT</th>
+                        <th style="border:1px solid #000; padding:3mm; text-align:center;">Họ và tên</th>
+                        <th style="border:1px solid #000; padding:3mm; text-align:center;">Chức danh</th>
+                        <th style="border:1px solid #000; padding:3mm; text-align:center;">Đơn vị</th>
+                        <th style="border:1px solid #000; padding:3mm; width:22mm; text-align:center;">Danh số</th>
+                    </tr>
+                `;
+
+                destKeys.forEach(dest => {
+                    let dName = dest;
+                    const dLower = String(dest || '').toLowerCase();
+                    if (!dLower.startsWith('giàn') && !dLower.startsWith('gian')) dName = `GIÀN ${dest}`;
+                    tableRows += `
+                        <tr>
+                            <td style="border:1px solid #000; padding:3mm; background:#D9D9D9;"></td>
+                            <td style="border:1px solid #000; padding:3mm; background:#D9D9D9; font-weight:bold;" colspan="4">${esc(dName)}</td>
+                        </tr>
+                    `;
+                    grouped[dest].forEach((p, i) => {
+                        tableRows += `
+                            <tr>
+                                <td style="border:1px solid #000; padding:2.5mm; text-align:center;">${i+1}</td>
+                                <td style="border:1px solid #000; padding:2.5mm;">${esc(p.fullName||'')}</td>
+                                <td style="border:1px solid #000; padding:2.5mm; text-align:center;">${esc(p.title||'')}</td>
+                                <td style="border:1px solid #000; padding:2.5mm; text-align:center;">${esc(p.orgName||'')}</td>
+                                <td style="border:1px solid #000; padding:2.5mm; text-align:center;">${esc(p.staffNo||'')}</td>
+                            </tr>
+                        `;
+                    });
+                });
+
+                const root = document.getElementById('pdfExportRoot') || (() => {
+                    const d = document.createElement('div'); d.id = 'pdfExportRoot'; d.className = 'hidden'; document.body.appendChild(d); return d;
+                })();
+
+                root.classList.remove('hidden');
+                root.innerHTML = `
+                    <div id="pdfDoc" style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #000; line-height: 1.25;">
+                        <style>
+                            @page { size: A4; margin: 12.7mm; }
+                        </style>
+
+                        <table style="width:100%; border-collapse:collapse; margin-bottom:6mm;">
+                            <tr>
+                                <td style="width:40%; vertical-align:top; text-align:center;">
+                                    <div style="font-weight:bold;">LIÊN DOANH VIỆT – NGA</div>
+                                    <div style="font-weight:bold;">VIETSOVPETRO</div>
+                                    <div style="font-weight:bold;">XNXL</div>
+                                    <div style="height:6mm;"></div>
+                                    <div>Số: ...../.....-CV-XL</div>
+                                </td>
+                                <td style="width:60%; vertical-align:top; text-align:center;">
+                                    <div style="font-weight:bold;">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                                    <div style="font-weight:bold; text-decoration: underline;">Độc lập – Tự do – Hạnh phúc</div>
+                                    <div style="height:6mm;"></div>
+                                    <div style="font-style:italic;">TPHCM, ngày ${dd} tháng ${mm} năm ${yyyy}</div>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <div style="text-align:center; margin-bottom:4mm;">
+                            <span>Kính gửi: </span><span style="font-weight:bold;">Trưởng ban ban TTĐĐSX</span>
+                        </div>
+
+                        <div style="text-align:center; font-weight:bold; font-size:14pt; margin: 4mm 0 6mm 0;">ĐƠN ĐĂNG KÝ ĐI RA CÔNG TRÌNH BIỂN</div>
+
+                        <div>Đơn vị đăng ký:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;XNXL</div>
+                        <div>Ngày khởi hành:&nbsp;&nbsp;${esc(dateDisplayString)}</div>
+                        <div>Phương tiện yêu cầu:&nbsp;&nbsp;&nbsp;&nbsp;Trực thăng x;&nbsp;&nbsp;&nbsp;&nbsp;Tàu x</div>
+                        <div>Đến CT biển : ${esc(destList)}</div>
+                        <div style="margin-top:2mm;">Nhiệm vụ được giao:</div>
+
+                        ${tasksHtml}
+
+                        <div style="margin-top:4mm;">Danh sách người đi:</div>
+                        <div style="height:2mm;"></div>
+
+                        <table style="width:100%; border-collapse:collapse;">
+                            ${tableRows}
+                        </table>
+
+                        <div style="height:8mm;"></div>
+
+                        <table style="width:100%; border-collapse:collapse;">
+                            <tr>
+                                <td style="width:50%; vertical-align:bottom;">
+                                    <div style="height:26mm;"></div>
+                                    <div style="font-style:italic; font-weight:bold;">Ký tắt:</div>
+                                    <div style="height:2mm;"></div>
+                                    <div style="margin-left:3mm;">- Lãnh đạo LDVN Vietsovpetro (nếu cần)</div>
+                                    <div style="height:2mm;"></div>
+                                    <div style="margin-left:3mm;">- Điều độ – XNKT:</div>
+                                    <div style="height:2mm;"></div>
+                                    <div style="margin-left:3mm;">- Phòng kỹ thuật :</div>
+                                    <div style="height:2mm;"></div>
+                                    <div style="margin-left:3mm;">- Điều độ XNXL:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Số đt: 8626</div>
+                                </td>
+                                <td style="width:50%; vertical-align:top; text-align:center;">
+                                    <div style="font-weight:bold;">${esc(sig.approver || 'TRƯỞNG BAN TTĐĐSX')}</div>
+                                    <div style="font-style:italic; font-size:10pt;">(Ký, ghi rõ họ tên)</div>
+                                    <div style="height:28mm;"></div>
+                                    <div style="font-weight:bold;">${esc(sig.approverName || '')}</div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                `;
+
+                const filename = `KeHoachDiBien_${dateDisplayString.split('+')[0].trim().replace(/\./g,'_')}_plus.pdf`;
+
+                try {
+                    if (canAutoPdf) {
+                        const opt = {
+                            margin: 12.7,
+                            filename,
+                            image: { type: 'jpeg', quality: 0.98 },
+                            html2canvas: { scale: 2, useCORS: true },
+                            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                            pagebreak: { mode: ['css', 'legacy'] }
+                        };
+                        await html2pdf().set(opt).from(root.querySelector('#pdfDoc')).save();
+                    } else {
+                        // Fallback: open a print window so user can Save as PDF.
+                        const w = window.open('', '_blank');
+                        if (!w) throw new Error('Không mở được cửa sổ in PDF (popup bị chặn).');
+                        const html = `<!doctype html><html><head><meta charset='utf-8'><title>${filename}</title></head><body>${root.querySelector('#pdfDoc').outerHTML}</body></html>`;
+                        w.document.open();
+                        w.document.write(html);
+                        w.document.close();
+                        setTimeout(() => { try { w.focus(); w.print(); } catch(e) {} }, 300);
+                        utils.showToast('Không có thư viện PDF tự động. Đã mở cửa sổ in — chọn "Save as PDF" để lưu.', 'info');
+                    }
+                } finally {
+                    root.innerHTML = '';
+                    root.classList.add('hidden');
+                }
             }
         };
 
