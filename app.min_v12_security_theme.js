@@ -3586,6 +3586,15 @@ children.push(new Table({ rows: tableRows, width: { size: 100, type: WidthType.P
                 if (outsideHandler) document.removeEventListener('click', outsideHandler, true);
                 outsideHandler = (e) => {
                     if (!pop) return;
+                    const t = e.target;
+
+                    // click inside the calendar popover -> keep open
+                    if (pop.contains(t)) return;
+
+                    // click back on the input -> keep open (avoid flicker)
+                    const input = document.getElementById('planDateInput');
+                    if (input && input.contains(t)) return;
+
                     close();
                 };
                 setTimeout(() => document.addEventListener('click', outsideHandler, true), 0);
