@@ -18,7 +18,6 @@ const firebaseConfig = {
             currentDateKey: new Date().toISOString().split('T')[0].replace(/-/g, ''),
             orgs: [],
             isPlanLocked: false,
-            planDocExists: false,
             currentPlanPeople: [],
             unsubscribePlan: null,
             users: [],
@@ -853,33 +852,19 @@ render() {
                     return;
                 }
 
-                // Sort by Date, then Title priority (Kỹ Sư/Chuyên viên), then Org, then Name
-                const _titleRank = (t) => {
-                    const s = String(t || '')
-                        .toLowerCase()
-                        .normalize('NFD')
-                        .replace(/[\u0300-\u036f]/g,'')
-                        .replace(/\s+/g,' ')
-                        .trim();
-
-                    // Priority titles (match if title CONTAINS keyword)
-                    // - "Kỹ sư" also covers "kĩ sư" variants after diacritics removal: "ky su" / "ki su"
-                    if (s.includes('ky su') || s.includes('kysu') || s.includes('ki su') || s.includes('kisu') || /\bks\b/.test(s)) return 0;
-
-                    // - "Chuyên viên"
-                    if (s.includes('chuyen vien') || s.includes('chuyenvien') || /\bcv\b/.test(s)) return 1;
-
-                    // - "Đốc công"
-                    if (s.includes('doc cong') || s.includes('doccong')) return 2;
-
-                    return 3;
-                };
+                // Sort by Date, then Destination, then orderIndex (đúng theo thứ tự kéo thả/import)
                 data.sort((a,b) => {
-                    return a._sortDate.localeCompare(b._sortDate)
-                        || (_titleRank(a.title) - _titleRank(b.title))
+                    const ai = Number.isFinite(+a.orderIndex) ? +a.orderIndex : 999999999;
+                    const bi = Number.isFinite(+b.orderIndex) ? +b.orderIndex : 999999999;
+                    return String(a._sortDate||'').localeCompare(String(b._sortDate||''))
+                        || String(a.destination||'').localeCompare(String(b.destination||''))
+                        || (ai - bi)
                         || String(a.orgName||'').localeCompare(String(b.orgName||''))
-                        || String(a.fullName||'').localeCompare(String(b.fullName||''));
+                        || String(a.fullName||'').localeCompare(String(b.fullName||''))
+                        || String(a.staffNo||'').localeCompare(String(b.staffNo||''));
                 });
+
+
 
                 const exportData = data.map((p, idx) => ({
                     "STT": idx + 1,
@@ -1404,32 +1389,8 @@ render() {
                 const more = document.getElementById('prevPeopleMore');
                 if (!tbody) return;
                 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-                const _titleRank = (t) => {
-                    const s = String(t || '')
-                        .toLowerCase()
-                        .normalize('NFD')
-                        .replace(/[\u0300-\u036f]/g,'')
-                        .replace(/\s+/g,' ')
-                        .trim();
-
-                    // Priority titles (match if title CONTAINS keyword)
-                    // - "Kỹ sư" also covers "kĩ sư" variants after diacritics removal: "ky su" / "ki su"
-                    if (s.includes('ky su') || s.includes('kysu') || s.includes('ki su') || s.includes('kisu') || /\bks\b/.test(s)) return 0;
-
-                    // - "Chuyên viên"
-                    if (s.includes('chuyen vien') || s.includes('chuyenvien') || /\bcv\b/.test(s)) return 1;
-
-                    // - "Đốc công"
-                    if (s.includes('doc cong') || s.includes('doccong')) return 2;
-
-                    return 3;
-                };
                 const max = 300;
-                const sorted = (people || []).slice().sort((a,b) => {
-                    return (_titleRank(a.title) - _titleRank(b.title))
-                        || String(a.fullName||'').localeCompare(String(b.fullName||''))
-                        || String(a.staffNo||'').localeCompare(String(b.staffNo||''));
-                });
+                const sorted = (people || []).slice(); // giữ đúng thứ tự trong Excel
                 const slice = sorted.slice(0, max);
                 tbody.innerHTML = slice.map((p, i) => `
                     <tr>
@@ -1786,12 +1747,22 @@ render() {
                     const batch = db.batch();
                     const collectionRef = getPublicColl('dailyPlans').doc(state.currentDateKey).collection('people');
                     const planRef = getPublicColl('dailyPlans').doc(state.currentDateKey);
-                    // Touch day doc if it already exists or user is dispatcher. (If workshop bị chặn create day doc, import vẫn tiếp tục.)
-                    if (state.userRole === 'dispatcher' || state.planDocExists) {
-                        batch.set(planRef, { updatedAt: new Date(), status: state.isPlanLocked ? 'Locked' : 'Draft' }, { merge: true });
-                    }
+                    batch.set(planRef, { updatedAt: new Date(), status: state.isPlanLocked ? 'Locked' : 'Draft' }, { merge: true });
 
-                    newPeople.forEach(p => {
+                    // OrderIndex: giữ đúng thứ tự Excel (append sau danh sách hiện có của cùng Giàn)
+                    let _baseOrder = 1;
+                    try {
+                        const dk = utils.destinationDisplay(destination || '');
+                        const maxIdx = (state.currentPlanPeople || [])
+                            .filter(pp => utils.destinationDisplay(pp.destination || '') === dk)
+                            .reduce((m, pp) => {
+                                const v = parseInt(pp.orderIndex, 10);
+                                return Number.isFinite(v) ? Math.max(m, v) : m;
+                            }, 0);
+                        _baseOrder = maxIdx + 1;
+                    } catch(e) { _baseOrder = 1; }
+
+                    newPeople.forEach((p, idx) => {
                         const newRef = collectionRef.doc();
                 const warnings = [];
                         if(!p.staffNo) warnings.push('Thiếu danh số');
@@ -1809,21 +1780,12 @@ render() {
                         
                         batch.set(newRef, {
                             ...p, orgName: finalOrgName, dkDate: date || '', destination: destination || '', nvsxNo: utils.normalizeNvsxInput(nvsx || ''), taskDesc: utils.normalizeTaskText(task || ''),
-                            orgId: defaultOrgId, warnings, createdAt: new Date(), importedBy: state.currentUser.email
+                            orgId: defaultOrgId, orderIndex: _baseOrder + idx, warnings, createdAt: new Date(), importedBy: state.currentUser.email
                         });
                     });
 
                     try {
                         await batch.commit();
-                        // Best-effort: tạo day doc nếu chưa có (để ngày mới hiện 'DRAFT' nếu rules cho phép). Không chặn import nếu bị deny.
-                        if (state.userRole !== 'dispatcher' && !state.planDocExists) {
-                            try {
-                                await planRef.set({ updatedAt: new Date(), status: 'Draft' }, { merge: true });
-                                state.planDocExists = true;
-                            } catch (e) {
-                                console.warn('createPlanDoc denied (ok):', e?.message || e);
-                            }
-                        }
                         audit.log('IMPORT', { count: newPeople.length, destination: destination || '', nvsxNo: nvsx || '', reason: (importModal.mode==='form' ? 'import_form' : 'import_excel') });
                         masterDataManager.saveToMaster(newPeople); 
                         utils.showToast(`Đã import xong`, 'success');
@@ -2094,14 +2056,18 @@ render() {
                         utils.showToast("Đã cập nhật", "success");
                     } else {
                         updatedData.createdAt = new Date(); updatedData.importedBy = state.currentUser.email; updatedData.orgId = state.userRole === 'dispatcher' ? 'XNXL' : state.userOrgId;
-                        // Touch day doc (best-effort). Workshop must be able to add/import even when day doc chưa tồn tại.
-                        const _planRef = getPublicColl('dailyPlans').doc(state.currentDateKey);
+                        // OrderIndex: thêm mới thì nằm cuối của Giàn hiện tại
                         try {
-                            await _planRef.set({ updatedAt: new Date(), status: state.isPlanLocked ? 'Locked' : 'Draft' }, { merge: true });
-                            state.planDocExists = true;
-                        } catch (e) {
-                            console.warn('touchPlanDoc failed (non-blocking):', e?.message || e);
-                        }
+                            const dk = utils.destinationDisplay(updatedData.destination || '');
+                            const maxIdx = (state.currentPlanPeople || [])
+                                .filter(pp => utils.destinationDisplay(pp.destination || '') === dk)
+                                .reduce((m, pp) => {
+                                    const v = parseInt(pp.orderIndex, 10);
+                                    return Number.isFinite(v) ? Math.max(m, v) : m;
+                                }, 0);
+                            updatedData.orderIndex = maxIdx + 1;
+                        } catch(e) { updatedData.orderIndex = 1; }
+                        await getPublicColl('dailyPlans').doc(state.currentDateKey).set({ updatedAt: new Date(), status: state.isPlanLocked ? 'Locked' : 'Draft' }, { merge: true });
                         await getPublicColl('dailyPlans').doc(state.currentDateKey).collection('people').add(updatedData);
                         audit.log('ADD_PERSON', { staffNo: updatedData.staffNo, fullName: updatedData.fullName, destination: updatedData.destination });
                         utils.showToast("Đã thêm mới", "success");
@@ -2202,41 +2168,26 @@ render() {
                 groupKeys.forEach(k => {
                     const dest = groupedByDestDate[k].dest;
                     const groupPeople = groupedByDestDate[k].people;
-                    const _titleRank = (t) => {
-                    const s = String(t || '')
-                        .toLowerCase()
-                        .normalize('NFD')
-                        .replace(/[\u0300-\u036f]/g,'')
-                        .replace(/\s+/g,' ')
-                        .trim();
-
-                    // Priority titles (match if title CONTAINS keyword)
-                    // - "Kỹ sư" also covers "kĩ sư" variants after diacritics removal: "ky su" / "ki su"
-                    if (s.includes('ky su') || s.includes('kysu') || s.includes('ki su') || s.includes('kisu') || /\bks\b/.test(s)) return 0;
-
-                    // - "Chuyên viên"
-                    if (s.includes('chuyen vien') || s.includes('chuyenvien') || /\bcv\b/.test(s)) return 1;
-
-                    // - "Đốc công"
-                    if (s.includes('doc cong') || s.includes('doccong')) return 2;
-
-                    return 3;
-                };
                     const groupSorted = (groupPeople || []).slice().sort((a,b) => {
-                        return (_titleRank(a.title) - _titleRank(b.title))
-                            || String(a.fullName||'').localeCompare(String(b.fullName||''))
-                            || String(a.staffNo||'').localeCompare(String(b.staffNo||''));
-                    });
+                    const ai = Number.isFinite(+a.orderIndex) ? +a.orderIndex : 999999999;
+                    const bi = Number.isFinite(+b.orderIndex) ? +b.orderIndex : 999999999;
+                    if (ai !== bi) return ai - bi;
+
+                    const at = a.createdAt ? (a.createdAt.seconds ? a.createdAt.seconds * 1000 : (+a.createdAt || 0)) : 0;
+                    const bt = b.createdAt ? (b.createdAt.seconds ? b.createdAt.seconds * 1000 : (+b.createdAt || 0)) : 0;
+                    if (at !== bt) return at - bt;
+
+                    return String(a.staffNo||'').localeCompare(String(b.staffNo||''));
+                });
                     const planId = groupedByDestDate[k].planId;
                     const dateForHeader = utils.formatPlanIdHeader(planId, dateDisplayString);
-            const group = grouped[dest];
-            const meta = utils.getGroupFinalMeta(group);
+            const meta = utils.getGroupFinalMeta(groupPeople);
             const uniqueNVSX = meta.nvsxStr;
             const uniqueTasks = (meta.taskLines || []).join('\n');
             const isInconsistent = !!meta.inconsistent;
 
                     // Cache group meta for Add-to-group button
-                    try { state.groupMetaByDest[dest] = { destination: dest, nvsxNo: allNvsx || '', taskDesc: (meta.taskText || '') }; } catch(e) {}
+                    try { state.groupMetaByDest[dest] = { destination: dest, nvsxNo: uniqueNVSX || '', taskDesc: (meta.taskText || '') }; } catch(e) {}
 
                     html += `
                 <div class="border border-slate-200 rounded-lg overflow-hidden">
@@ -2653,7 +2604,6 @@ document.getElementById('btnLock').classList.toggle('hidden', !isDisp);
                 // UPDATED PATH: Use public/data/dailyPlans
                 getPublicColl('dailyPlans').doc(state.currentDateKey).get().then(doc => {
                     state.isPlanLocked = false;
-                    state.planDocExists = doc.exists;
                     if(doc.exists) {
                         state.isPlanLocked = doc.data().status === 'Locked';
                         document.getElementById('planStatus').innerText = state.isPlanLocked ? 'ĐÃ KHÓA' : 'DRAFT';
@@ -2711,30 +2661,16 @@ document.getElementById('btnLock').classList.toggle('hidden', !isDisp);
 
                 Object.keys(grouped).sort().forEach(dest => {
                     const group = grouped[dest];
-                    const _titleRank = (t) => {
-                    const s = String(t || '')
-                        .toLowerCase()
-                        .normalize('NFD')
-                        .replace(/[\u0300-\u036f]/g,'')
-                        .replace(/\s+/g,' ')
-                        .trim();
-
-                    // Priority titles (match if title CONTAINS keyword)
-                    // - "Kỹ sư" also covers "kĩ sư" variants after diacritics removal: "ky su" / "ki su"
-                    if (s.includes('ky su') || s.includes('kysu') || s.includes('ki su') || s.includes('kisu') || /\bks\b/.test(s)) return 0;
-
-                    // - "Chuyên viên"
-                    if (s.includes('chuyen vien') || s.includes('chuyenvien') || /\bcv\b/.test(s)) return 1;
-
-                    // - "Đốc công"
-                    if (s.includes('doc cong') || s.includes('doccong')) return 2;
-
-                    return 3;
-                };
                     const groupSorted = (group || []).slice().sort((a,b) => {
-                        return (_titleRank(a.title) - _titleRank(b.title))
-                            || String(a.fullName||'').localeCompare(String(b.fullName||''))
-                            || String(a.staffNo||'').localeCompare(String(b.staffNo||''));
+                        const ai = Number.isFinite(+a.orderIndex) ? +a.orderIndex : 999999999;
+                        const bi = Number.isFinite(+b.orderIndex) ? +b.orderIndex : 999999999;
+                        if (ai !== bi) return ai - bi;
+
+                        const at = a.createdAt ? (a.createdAt.seconds ? a.createdAt.seconds * 1000 : (+a.createdAt || 0)) : 0;
+                        const bt = b.createdAt ? (b.createdAt.seconds ? b.createdAt.seconds * 1000 : (+b.createdAt || 0)) : 0;
+                        if (at !== bt) return at - bt;
+
+                        return String(a.staffNo||'').localeCompare(String(b.staffNo||''));
                     });
                     const meta = utils.getGroupFinalMeta(group);
                     const allNvsx = meta.nvsxStr;
@@ -2780,7 +2716,7 @@ document.getElementById('btnLock').classList.toggle('hidden', !isDisp);
                         </div>
                     `;
 
-                    const sortedGroup = [...group].sort((a,b) => (a.nvsxNo||'').localeCompare(b.nvsxNo||'') || (a.staffNo||'').localeCompare(b.staffNo||''));
+                    const sortedGroup = groupSorted;
 
                     if (isMobile) {
                         html += `<div class="bg-white divide-y divide-slate-100">`;
@@ -2801,7 +2737,7 @@ document.getElementById('btnLock').classList.toggle('hidden', !isDisp);
                                 : `<div class="text-slate-300"><i class="fas fa-lock"></i></div>`;
 
                             html += `
-                                <div class="p-3 ${warn ? 'bg-red-50/40' : ''}">
+                                <div data-person-id="${p.id}" data-dest="${escHtml(dest)}" ${state.userRole==='dispatcher' ? 'draggable="true"' : ''} class="js-dnd-row p-3 ${warn ? 'bg-red-50/40' : ''}">
                                     <div class="flex items-start justify-between gap-3">
                                         <div class="min-w-0">
                                             <div class="flex items-center gap-2">
@@ -2874,7 +2810,7 @@ document.getElementById('btnLock').classList.toggle('hidden', !isDisp);
                                 updatedInfo = `<span class="text-[9px] text-slate-400 font-mono block mt-1 leading-tight">${u} ${utils.formatTimeShort(new Date(t))}</span>`;
                             }
                             const actionBtns = canEdit ? `<div class="flex flex-col items-center justify-center"><div class="flex space-x-2 mb-1"><button onclick="editModal.open('${p.id}')" class="text-blue-500 hover:text-blue-700 transition"><i class="fas fa-pen"></i></button><button onclick="app.deletePerson('${p.id}')" class="text-red-400 hover:text-red-600 transition"><i class="fas fa-trash-alt"></i></button></div>${updatedInfo}</div>` : `<div class="flex flex-col items-center"><span class="text-slate-300"><i class="fas fa-lock"></i></span>${updatedInfo}</div>`;
-                            html += `<tr class="${warnClass} hover:bg-blue-50/30 transition duration-75 group"><td class="px-3 py-2 text-slate-400 text-center font-mono">${idx+1}</td><td class="px-3 py-2 text-slate-600 font-mono">${p.staffNo}</td><td class="px-3 py-2 font-semibold text-slate-700">${p.fullName}</td><td class="px-3 py-2 text-slate-600"><div class="font-medium">${p.title||''}</div><div class="text-[10px] text-slate-400 uppercase mt-0.5 font-bold tracking-wide">${p.orgName||'-'}</div></td><td class="px-3 py-2 text-slate-600"><div class="font-mono text-xs">${p.dob||'-'}</div><div class="text-[10px] text-slate-400 mt-0.5">${p.pob||''}</div></td><td class="px-3 py-2 text-slate-600 font-mono">${p.phone||'-'}</td><td class="px-3 py-2 text-slate-600"><div class="font-mono text-xs">${p.idNo||'-'}</div><div class="text-[10px] ${p.isIdExpiring?'text-red-600 font-bold':'text-slate-400'} mt-0.5">${p.idExpiryDate||''}${warnIcon}</div></td><td class="px-3 py-2 text-slate-600 text-center">${p.weightKg||0}</td><td class="px-3 py-2 text-slate-600 text-center">${p.luggageKg||0}</td><td class="px-3 py-2 text-slate-600 text-center">${p.cargoKg||0}</td><td class="px-3 py-2 text-slate-500 italic text-[11px] break-words max-w-[150px]">${p.rowNote||''}</td><td class="px-3 py-2 text-center sticky right-0 bg-white group-hover:bg-blue-50/30 shadow-l-sm border-l border-slate-50">${actionBtns}</td></tr>`;
+                            html += `<tr data-person-id="${p.id}" data-dest="${escHtml(dest)}" ${state.userRole==='dispatcher' ? 'draggable="true"' : ''} class="js-dnd-row ${warnClass} hover:bg-blue-50/30 transition duration-75 group"><td class="px-3 py-2 text-slate-400 text-center font-mono">${idx+1}</td><td class="px-3 py-2 text-slate-600 font-mono">${p.staffNo}</td><td class="px-3 py-2 font-semibold text-slate-700">${p.fullName}</td><td class="px-3 py-2 text-slate-600"><div class="font-medium">${p.title||''}</div><div class="text-[10px] text-slate-400 uppercase mt-0.5 font-bold tracking-wide">${p.orgName||'-'}</div></td><td class="px-3 py-2 text-slate-600"><div class="font-mono text-xs">${p.dob||'-'}</div><div class="text-[10px] text-slate-400 mt-0.5">${p.pob||''}</div></td><td class="px-3 py-2 text-slate-600 font-mono">${p.phone||'-'}</td><td class="px-3 py-2 text-slate-600"><div class="font-mono text-xs">${p.idNo||'-'}</div><div class="text-[10px] ${p.isIdExpiring?'text-red-600 font-bold':'text-slate-400'} mt-0.5">${p.idExpiryDate||''}${warnIcon}</div></td><td class="px-3 py-2 text-slate-600 text-center">${p.weightKg||0}</td><td class="px-3 py-2 text-slate-600 text-center">${p.luggageKg||0}</td><td class="px-3 py-2 text-slate-600 text-center">${p.cargoKg||0}</td><td class="px-3 py-2 text-slate-500 italic text-[11px] break-words max-w-[150px]">${p.rowNote||''}</td><td class="px-3 py-2 text-center sticky right-0 bg-white group-hover:bg-blue-50/30 shadow-l-sm border-l border-slate-50">${actionBtns}</td></tr>`;
                         });
 
                         html += `
@@ -2887,6 +2823,7 @@ document.getElementById('btnLock').classList.toggle('hidden', !isDisp);
                 container.innerHTML = html;
                 setTimeout(() => { try { app.initAddToGroupButtons(); } catch(e){} }, 0);
                 setTimeout(() => { try { app.initTaskToggles(); } catch(e){} }, 0);
+                setTimeout(() => { try { app.initOrderDnd(); } catch(e){} }, 0);
             },
 
             initAddToGroupButtons: () => {
@@ -2926,6 +2863,125 @@ document.getElementById('btnLock').classList.toggle('hidden', !isDisp);
                     });
                 } catch (e) {
                     console.warn('initTaskToggles failed', e);
+                }
+            },
+
+            initOrderDnd: () => {
+                try {
+                    // Only ADMIN can reorder (workshop không đủ quyền update thứ tự của toàn bộ bảng)
+                    if (state.userRole !== 'dispatcher') return;
+
+                    const container = document.getElementById('planContent');
+                    if (!container || container._boundOrderDnd) return;
+
+                    let dragId = null;
+                    let dragDest = null;
+
+                    const getRow = (el) => (el && el.closest) ? el.closest('.js-dnd-row') : null;
+
+                    container.addEventListener('dragstart', (e) => {
+                        const row = getRow(e.target);
+                        if (!row) return;
+                        dragId = row.getAttribute('data-person-id');
+                        dragDest = row.getAttribute('data-dest') || '';
+                        try {
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', dragId || '');
+                        } catch(_) {}
+                        row.classList.add('opacity-60');
+                    }, true);
+
+                    container.addEventListener('dragend', (e) => {
+                        const row = getRow(e.target);
+                        if (row) row.classList.remove('opacity-60');
+                        dragId = null; dragDest = null;
+                        try {
+                            container.querySelectorAll('.js-dnd-row').forEach(r => r.classList.remove('ring-2', 'ring-blue-300'));
+                        } catch(_) {}
+                    }, true);
+
+                    container.addEventListener('dragover', (e) => {
+                        const row = getRow(e.target);
+                        if (!row || !dragId) return;
+                        const dest = row.getAttribute('data-dest') || '';
+                        if (dest !== dragDest) return;
+                        e.preventDefault();
+                        row.classList.add('ring-2', 'ring-blue-300');
+                    }, true);
+
+                    container.addEventListener('dragleave', (e) => {
+                        const row = getRow(e.target);
+                        if (!row) return;
+                        row.classList.remove('ring-2', 'ring-blue-300');
+                    }, true);
+
+                    container.addEventListener('drop', async (e) => {
+                        const row = getRow(e.target);
+                        if (!row || !dragId) return;
+
+                        const dest = row.getAttribute('data-dest') || '';
+                        if (dest !== dragDest) return;
+
+                        e.preventDefault();
+
+                        const dragRow = container.querySelector('.js-dnd-row[data-person-id="' + dragId + '"]');
+                        if (!dragRow || dragRow === row) return;
+
+                        const rect = row.getBoundingClientRect();
+                        const before = e.clientY < rect.top + rect.height / 2;
+
+                        const parent = row.parentElement;
+                        if (!parent) return;
+
+                        if (before) parent.insertBefore(dragRow, row);
+                        else parent.insertBefore(dragRow, row.nextSibling);
+
+                        // Re-index rows for this destination (within the same group/table)
+                        const rows = Array.from(parent.querySelectorAll('.js-dnd-row'))
+                            .filter(r => (r.getAttribute('data-dest') || '') === dest);
+
+                        const orderedIds = rows.map(r => r.getAttribute('data-person-id')).filter(Boolean);
+
+                        await app.saveOrderIndexesForDest(dest, orderedIds);
+                    }, true);
+
+                    container._boundOrderDnd = true;
+                } catch(e) {
+                    console.warn('initOrderDnd failed', e);
+                }
+            },
+
+            saveOrderIndexesForDest: async (dest, orderedIds) => {
+                try {
+                    if (state.userRole !== 'dispatcher') return;
+                    if (!Array.isArray(orderedIds) || orderedIds.length === 0) return;
+
+                    const idToOld = {};
+                    (state.currentPlanPeople || []).forEach(p => {
+                        idToOld[p.id] = Number.isFinite(+p.orderIndex) ? +p.orderIndex : null;
+                    });
+
+                    // UPDATED PATH: Use public/data/dailyPlans
+                    const col = getPublicColl('dailyPlans').doc(state.currentDateKey).collection('people');
+                    const batch = db.batch();
+
+                    let changed = 0;
+                    orderedIds.forEach((id, idx) => {
+                        const newIdx = idx + 1;
+                        const oldIdx = idToOld[id];
+                        if (oldIdx !== newIdx) {
+                            batch.update(col.doc(id), { orderIndex: newIdx, updatedAt: new Date(), updatedBy: state.currentUser.email });
+                            changed++;
+                        }
+                    });
+
+                    if (changed === 0) return;
+                    await batch.commit();
+                    try { audit.log('REORDER', { destination: dest || '', count: changed }); } catch(_) {}
+                    utils.showToast('Đã cập nhật thứ tự (kéo thả)', 'success');
+                } catch(e) {
+                    console.error(e);
+                    utils.showToast('Lỗi sắp xếp: ' + e.message, 'error');
                 }
             },
             toggleTask: (targetId) => {
@@ -3154,31 +3210,17 @@ deleteAllPeople: async () => {
                 groupKeysTbl.forEach(k => {
                     const dest = groupedByDestDateTbl[k].dest;
                     const groupPeople = groupedByDestDateTbl[k].people;
-                    const _titleRank = (t) => {
-                    const s = String(t || '')
-                        .toLowerCase()
-                        .normalize('NFD')
-                        .replace(/[\u0300-\u036f]/g,'')
-                        .replace(/\s+/g,' ')
-                        .trim();
-
-                    // Priority titles (match if title CONTAINS keyword)
-                    // - "Kỹ sư" also covers "kĩ sư" variants after diacritics removal: "ky su" / "ki su"
-                    if (s.includes('ky su') || s.includes('kysu') || s.includes('ki su') || s.includes('kisu') || /\bks\b/.test(s)) return 0;
-
-                    // - "Chuyên viên"
-                    if (s.includes('chuyen vien') || s.includes('chuyenvien') || /\bcv\b/.test(s)) return 1;
-
-                    // - "Đốc công"
-                    if (s.includes('doc cong') || s.includes('doccong')) return 2;
-
-                    return 3;
-                };
                     const groupPeopleSorted = (groupPeople || []).slice().sort((a,b) => {
-                        return (_titleRank(a.title) - _titleRank(b.title))
-                            || String(a.fullName||'').localeCompare(String(b.fullName||''))
-                            || String(a.staffNo||'').localeCompare(String(b.staffNo||''));
-                    });
+                    const ai = Number.isFinite(+a.orderIndex) ? +a.orderIndex : 999999999;
+                    const bi = Number.isFinite(+b.orderIndex) ? +b.orderIndex : 999999999;
+                    if (ai !== bi) return ai - bi;
+
+                    const at = a.createdAt ? (a.createdAt.seconds ? a.createdAt.seconds * 1000 : (+a.createdAt || 0)) : 0;
+                    const bt = b.createdAt ? (b.createdAt.seconds ? b.createdAt.seconds * 1000 : (+b.createdAt || 0)) : 0;
+                    if (at !== bt) return at - bt;
+
+                    return String(a.staffNo||'').localeCompare(String(b.staffNo||''));
+                });
                     const planId = groupedByDestDateTbl[k].planId;
                     const dateForHeader = utils.formatPlanIdHeader(planId, dateDisplayString);
 
@@ -3318,31 +3360,17 @@ children.push(new Table({ rows: tableRows, width: { size: 100, type: WidthType.P
                 groupKeysTbl.forEach(k => {
                     const dest = groupedByDestDateTbl[k].dest;
                     const groupPeople = groupedByDestDateTbl[k].people;
-                    const _titleRank = (t) => {
-                    const s = String(t || '')
-                        .toLowerCase()
-                        .normalize('NFD')
-                        .replace(/[\u0300-\u036f]/g,'')
-                        .replace(/\s+/g,' ')
-                        .trim();
-
-                    // Priority titles (match if title CONTAINS keyword)
-                    // - "Kỹ sư" also covers "kĩ sư" variants after diacritics removal: "ky su" / "ki su"
-                    if (s.includes('ky su') || s.includes('kysu') || s.includes('ki su') || s.includes('kisu') || /\bks\b/.test(s)) return 0;
-
-                    // - "Chuyên viên"
-                    if (s.includes('chuyen vien') || s.includes('chuyenvien') || /\bcv\b/.test(s)) return 1;
-
-                    // - "Đốc công"
-                    if (s.includes('doc cong') || s.includes('doccong')) return 2;
-
-                    return 3;
-                };
                     const groupPeopleSorted = (groupPeople || []).slice().sort((a,b) => {
-                        return (_titleRank(a.title) - _titleRank(b.title))
-                            || String(a.fullName||'').localeCompare(String(b.fullName||''))
-                            || String(a.staffNo||'').localeCompare(String(b.staffNo||''));
-                    });
+                    const ai = Number.isFinite(+a.orderIndex) ? +a.orderIndex : 999999999;
+                    const bi = Number.isFinite(+b.orderIndex) ? +b.orderIndex : 999999999;
+                    if (ai !== bi) return ai - bi;
+
+                    const at = a.createdAt ? (a.createdAt.seconds ? a.createdAt.seconds * 1000 : (+a.createdAt || 0)) : 0;
+                    const bt = b.createdAt ? (b.createdAt.seconds ? b.createdAt.seconds * 1000 : (+b.createdAt || 0)) : 0;
+                    if (at !== bt) return at - bt;
+
+                    return String(a.staffNo||'').localeCompare(String(b.staffNo||''));
+                });
                     const planId = groupedByDestDateTbl[k].planId;
                     const dateForHeader = utils.formatPlanIdHeader(planId, dateDisplayString);
                     let dName = dest;
