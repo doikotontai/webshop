@@ -904,19 +904,15 @@ render() {
 
                 XLSX.utils.book_append_sheet(wb, ws, "Báo Cáo");
                 (function(){
-                  const filename = `Template_BayDi_${new Date().getTime()}.xls`;
-                  /* Force Excel 97-2003 (BIFF8) output */
-                  const wbout = XLSX.write(wb, { bookType: 'biff8', type: 'array' });
-                  const blob = new Blob([wbout], { type: 'application/vnd.ms-excel' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = filename;
-                  document.body.appendChild(a);
-                  a.click();
-                  a.remove();
-                  setTimeout(()=>URL.revokeObjectURL(url), 2000);
-                })();
+  const filename = `BaoCao_${new Date().getTime()}.xlsx`;
+  // Default report export stays as .xlsx (do not force .xls here)
+  try {
+    XLSX.writeFile(wb, filename, { bookType: 'xlsx', compression: true });
+  } catch (e) {
+    // Fallback for bundles that don't support writeFile options
+    XLSX.writeFile(wb, filename);
+  }
+})();
                 
                 utils.showToast("Đã tải xuống file Excel", "success");
                 reportManager.close();
