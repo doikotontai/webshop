@@ -3208,9 +3208,9 @@ deleteAllPeople: async () => {
                     new Paragraph({ children: [ new TextRun({ text: "ĐƠN ĐĂNG KÝ ĐI RA CÔNG TRÌNH BIỂN", bold: true, size: 28, font: FONT }) ], alignment: AlignmentType.CENTER }),
                     new Paragraph({ text: "" }),
                     new Paragraph({ children: [new TextRun({ text: `Đơn vị đăng ký:      XNXL`, size: SZ_N, font: FONT })] }),
-                    new Paragraph({ children: [new TextRun({ text: `Ngày khởi hành:  ${dateDisplayString}`, size: SZ_N, font: FONT })] }),
+                    new Paragraph({ children: [new TextRun({ text: "Ngày khởi hành:  ", size: SZ_N, font: FONT }),new TextRun({ text: dateDisplayString, bold: true, size: SZ_N, font: FONT })] }),
                     new Paragraph({ children: [new TextRun({ text: `Phương tiện yêu cầu:     Trực thăng x;     Tàu x`, size: SZ_N, font: FONT })] }),
-                    new Paragraph({ children: [new TextRun({ text: `Đến CT biển : ${Object.keys(grouped).join(', ')}`, size: SZ_N, font: FONT })] }),
+                    new Paragraph({ children: [new TextRun({ text: `Đến CT biển : ${Object.keys(grouped).map(d => String(d ?? '').replace(/^\s*(?:GIÀN|Giàn|giàn|GIAN|gian)\s+/, '').trim()).join(', ')}`, size: SZ_N, font: FONT })] }),
                     new Paragraph({ children: [new TextRun({ text: `Nhiệm vụ được giao: `, size: SZ_N, font: FONT })] })
                 ];
 
@@ -3219,11 +3219,10 @@ deleteAllPeople: async () => {
                     const meta = utils.getGroupFinalMeta(group);
                     const uniqueNVSX = meta.nvsxStr;
                     const uniqueTasks = (meta.taskLines || []);
-                    children.push(new Paragraph({ children: [ new TextRun({ text: "-", size: SZ_N, font: FONT }), new TextRun({ text: ` ${dest}: `, bold: true, size: SZ_N, font: FONT }) ], indent: { left: 720 }, spacing: { before: 100 } }));
+                    children.push(new Paragraph({ children: [ new TextRun({ text: "-", size: SZ_N, font: FONT }), new TextRun({ text: ` ${dest}: `, bold: true, color: "C00000", size: SZ_N, font: FONT }) ], indent: { left: 720 }, spacing: { before: 100 } }));
                     if(uniqueNVSX) children.push(new Paragraph({ children: [ new TextRun({ text: `+ NVSX: ${uniqueNVSX}`, size: SZ_N, font: FONT }) ], indent: { left: 1440 } }));
                     if(uniqueTasks.length > 0) {
-                        children.push(new Paragraph({ children: [ new TextRun({ text: `+ Nội dung công việc:`, size: SZ_N, font: FONT }) ], indent: { left: 1440 } }));
-                        uniqueTasks.forEach(line => { let l = (line || '').trim(); if (!l) return; if (/^\d+[\)\.]/.test(l)) l = l.replace(/^\d+[\)\.]\s*/, '- '); else if (!l.startsWith('-')) l = '- ' + l; children.push(new Paragraph({ children: [ new TextRun({ text: l, size: SZ_N, font: FONT }) ], indent: { left: 2160 } })); });
+uniqueTasks.forEach(line => { let l = (line || '').trim(); if (!l) return; if (/^\d+[\)\.]/.test(l)) l = l.replace(/^\d+[\)\.]\s*/, '- '); else if (!l.startsWith('-')) l = '- ' + l; children.push(new Paragraph({ children: [ new TextRun({ text: l, size: SZ_N, font: FONT }) ], indent: { left: 2160 } })); });
                     }
                 });
 
@@ -3730,9 +3729,9 @@ generatePdf: async (peopleData, dateDisplayString) => {
                 const grouped = people.reduce((acc, p) => { const k = p.destination || 'KHÁC'; (acc[k] = acc[k] || []).push(p); return acc; }, {});
 
                 const destKeys = Object.keys(grouped);
-                const destList = destKeys.join(', ');
-
-                // Build nhiệm vụ section
+                const _stripGian = (s) => String(s ?? '').replace(/^\s*(?:GIÀN|Giàn|giàn|GIAN|gian)\s+/,'').trim();
+                const destList = destKeys.map(_stripGian).join(', ');
+// Build nhiệm vụ section
                 let tasksHtml = '';
                 destKeys.forEach(dest => {
                     const group = grouped[dest];
@@ -3741,10 +3740,9 @@ generatePdf: async (peopleData, dateDisplayString) => {
                     const lines = meta.taskLines || [];
                     tasksHtml += `
                         <div style="margin-left: 10mm; margin-top: 2mm;">
-                            <div><span style="font-weight:bold;">- ${esc(dest)}:</span></div>
+                            <div><span>- </span><span style="font-weight:bold; color:#C00000;">${esc(dest)}</span><span>:</span></div>
                             ${nvsx ? `<div style="margin-left: 6mm;">+ NVSX: ${esc(nvsx)}</div>` : ``}
-                            ${lines.length ? `<div style="margin-left: 6mm;">+ Nội dung công việc:</div>` : ``}
-                            ${lines.map(l => {
+${lines.map(l => {
                                 let x = (l||'').trim();
                                 if (!x) return '';
                                 if (/^\d+[\)\.]/.test(x)) x = x.replace(/^\d+[\)\.]\s*/, '- ');
@@ -3865,7 +3863,7 @@ generatePdf: async (peopleData, dateDisplayString) => {
                         <div style="text-align:center; font-weight:bold; font-size:14pt; margin: 4mm 0 6mm 0;">ĐƠN ĐĂNG KÝ ĐI RA CÔNG TRÌNH BIỂN</div>
 
                         <div>Đơn vị đăng ký:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;XNXL</div>
-                        <div>Ngày khởi hành:&nbsp;&nbsp;${esc(dateDisplayString)}</div>
+                        <div>Ngày khởi hành:&nbsp;&nbsp;<span style="font-weight:bold;">${esc(dateDisplayString)}</span></div>
                         <div>Phương tiện yêu cầu:&nbsp;&nbsp;&nbsp;&nbsp;Trực thăng x;&nbsp;&nbsp;&nbsp;&nbsp;Tàu x</div>
                         <div>Đến CT biển : ${esc(destList)}</div>
                         <div style="margin-top:2mm;">Nhiệm vụ được giao:</div>
