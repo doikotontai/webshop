@@ -317,6 +317,7 @@
                         <button id="btnLock" onclick="app.toggleLockPlan()" class="hidden bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i class="fas fa-lock"></i></button>
                          <button id="btnExport" onclick="exportManager.open()" class="hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i class="fas fa-file-word mr-1"></i> Xuất</button>
                          <button id="btnReport" onclick="reportManager.open()" class="hidden bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i class="fas fa-chart-bar mr-1"></i> Báo cáo</button>
+                         <button id="btnCleanup" onclick="cleanupManager.open()" class="hidden bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i class="fas fa-broom mr-1"></i> Dọn dữ liệu</button>
                     </div>
                 </div>
 
@@ -493,6 +494,67 @@
                 <button onclick="exportManager.confirmPdf()" class="px-4 py-2 bg-white border border-slate-300 rounded text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fas fa-file-pdf mr-1 text-red-600"></i> Xuất PDF</button>
                                 <button onclick="exportManager.confirmBaydi()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-bold shadow-sm"><i class="fas fa-file-excel mr-1"></i> Xuất Template BayDi</button>
 <button onclick="exportManager.confirmExport()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold shadow-sm">Xác nhận xuất DOCX</button>
+            </div>
+        </div>
+    </div>
+
+    
+    <!-- CLEANUP DATA MODAL (ADMIN ONLY) -->
+    <div id="cleanupModal" class="fixed inset-0 bg-slate-950/70 z-[85] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh]">
+            <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <div class="text-lg font-bold text-slate-900">Dọn dữ liệu đăng ký đi biển</div>
+                    <div class="text-sm text-slate-500 mt-1">Chỉ Admin (dispatcher) mới dùng. Xóa sẽ <b>mất vĩnh viễn</b> dữ liệu của tháng/năm đã chọn (cả dailyPlans & people).</div>
+                </div>
+                <button onclick="cleanupManager.close()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+            </div>
+
+            <div class="p-5 space-y-4 overflow-auto">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Chế độ</label>
+                        <select id="cleanupMode" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                            <option value="month">Xóa theo tháng</option>
+                            <option value="year">Xóa theo năm</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Năm</label>
+                        <input id="cleanupYear" type="number" min="2020" max="2100" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="2026" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Tháng</label>
+                        <select id="cleanupMonth" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                            <option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option>
+                            <option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option>
+                            <option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div class="text-sm text-amber-900">
+                        Để xác nhận, hãy gõ đúng chuỗi sau: <span id="cleanupConfirmText" class="font-bold"></span>
+                    </div>
+                    <input id="cleanupConfirmInput" class="mt-2 w-full border border-amber-300 rounded-lg px-3 py-2 text-sm" placeholder="Gõ để xác nhận..." />
+                </div>
+
+                <div id="cleanupProgressBox" class="hidden bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <div class="text-sm font-semibold text-slate-700 mb-2">Tiến độ</div>
+                    <div class="text-sm text-slate-600 space-y-1">
+                        <div>Ngày xử lý: <span id="cleanupProgDay">0</span>/<span id="cleanupProgTotalDays">0</span></div>
+                        <div>Đã xóa people: <span id="cleanupProgPeople">0</span></div>
+                        <div>Đã xóa dailyPlans: <span id="cleanupProgPlans">0</span></div>
+                        <div class="text-xs text-slate-500">Nếu mạng yếu, quá trình có thể mất thời gian. Không đóng tab trong lúc đang chạy.</div>
+                    </div>
+                    <div id="cleanupProgErrors" class="mt-2 text-xs text-red-600 whitespace-pre-wrap"></div>
+                </div>
+            </div>
+
+            <div class="p-5 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button onclick="cleanupManager.close()" class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200">Hủy</button>
+                <button id="cleanupStartBtn" onclick="cleanupManager.start()" class="px-4 py-2 rounded-lg text-sm font-bold bg-amber-600 hover:bg-amber-700 text-white">Bắt đầu dọn</button>
             </div>
         </div>
     </div>
