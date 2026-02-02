@@ -444,42 +444,54 @@
             <!-- Dashboard View -->
             <div id="dashboardView" class="w-full h-full flex flex-col p-4 space-y-3 overflow-y-auto">
                 <div
-                    class="bg-white p-3 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 flex-none">
-                    <div class="flex items-center gap-4 w-full md:w-auto">
+                    class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-3 flex-none">
+
+                    <!-- 1. Row: Date & Status (Mobile: Justified, Desktop: Auto) -->
+                    <div class="flex items-center justify-between w-full md:w-auto md:justify-start gap-4">
                         <div class="relative">
                             <input type="date" id="planDateInput"
-                                class="border border-slate-300 rounded px-3 py-1.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                                class="border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
                                 onchange="app.changeDate()">
                             <label
                                 class="absolute -top-2 left-2 bg-white px-1 text-[10px] font-bold text-slate-400 uppercase">Ngày</label>
                         </div>
                         <div id="planStatus"
-                            class="px-3 py-1.5 rounded text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wider">
+                            class="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wider min-w-[80px] text-center">
                             --</div>
                     </div>
 
+                    <!-- 2. Row: Stats (Mobile: Grid 4 cols, Desktop: Flex) -->
                     <div
-                        class="flex flex-grow justify-center gap-6 md:gap-12 text-center border-l border-r border-slate-100 px-4">
-                        <div>
-                            <div class="text-[10px] text-slate-400 font-bold uppercase">Tổng</div>
-                            <div class="text-xl font-bold text-slate-700 leading-none mt-0.5" id="statTotal">0</div>
-                        </div>
-                        <div>
-                            <div class="text-[10px] text-emerald-500 font-bold uppercase">Đi biển</div>
-                            <div class="text-xl font-bold text-emerald-600 leading-none mt-0.5" id="statOffshore">0
+                        class="grid grid-cols-4 gap-2 w-full md:w-auto md:flex md:gap-12 md:px-6 md:border-l md:border-r border-slate-100 py-2 md:py-0">
+                        <div
+                            class="flex flex-col items-center p-2 bg-slate-50 md:bg-transparent rounded-lg md:rounded-none border border-slate-100 md:border-none">
+                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tổng</div>
+                            <div class="text-lg md:text-xl font-black text-slate-700 leading-none mt-1" id="statTotal">0
                             </div>
                         </div>
-                        <div>
-                            <div class="text-[10px] text-orange-400 font-bold uppercase">Về bờ</div>
-                            <div class="text-xl font-bold text-orange-500 leading-none mt-0.5" id="statReturn">0</div>
+                        <div
+                            class="flex flex-col items-center p-2 bg-emerald-50/50 md:bg-transparent rounded-lg md:rounded-none border border-emerald-100/50 md:border-none">
+                            <div class="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Đi</div>
+                            <div class="text-lg md:text-xl font-black text-emerald-600 leading-none mt-1"
+                                id="statOffshore">0
+                            </div>
                         </div>
-                        <div id="warningStatBox" class="opacity-30 transition-opacity duration-300">
-                            <div class="text-[10px] text-red-500 font-bold uppercase">Cảnh báo</div>
-                            <div class="text-xl font-bold text-red-600 leading-none mt-0.5" id="statWarnings">0</div>
+                        <div
+                            class="flex flex-col items-center p-2 bg-orange-50/50 md:bg-transparent rounded-lg md:rounded-none border border-orange-100/50 md:border-none">
+                            <div class="text-[10px] text-orange-500 font-bold uppercase tracking-wider">Về</div>
+                            <div class="text-lg md:text-xl font-black text-orange-500 leading-none mt-1"
+                                id="statReturn">0</div>
+                        </div>
+                        <div id="warningStatBox"
+                            class="flex flex-col items-center p-2 bg-red-50/50 md:bg-transparent rounded-lg md:rounded-none border border-red-100/50 md:border-none opacity-30 transition-opacity duration-300">
+                            <div class="text-[10px] text-red-500 font-bold uppercase tracking-wider">C.Báo</div>
+                            <div class="text-lg md:text-xl font-black text-red-600 leading-none mt-1" id="statWarnings">
+                                0</div>
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-2">
+                    <!-- 3. Row: Actions (Mobile: Scrollable or Wrap) -->
+                    <div class="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-1 md:pb-0">
                         <div class="relative hidden md:block">
                             <input id="quickSearch" type="text" placeholder="Tìm nhanh..."
                                 class="border border-slate-300 rounded px-3 py-1.5 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm pr-8 w-48"
@@ -488,27 +500,29 @@
                                 class="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 px-1"
                                 title="Xóa tìm kiếm">&times;</button>
                         </div>
+                        <!-- Mobile Search Button (Placeholder if needed, else reliance on default behavior) -->
+
                         <button id="btnAdd" onclick="editModal.open()"
-                            class="hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i
-                                class="fas fa-plus mr-2"></i> Thêm</button>
+                            class="hidden whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-sm flex items-center transition"><i
+                                class="fas fa-plus mr-1.5"></i> Thêm</button>
                         <button id="btnImport" onclick="importModal.open()"
-                            class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i
-                                class="fas fa-file-excel mr-2"></i> Import</button>
+                            class="whitespace-nowrap bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-sm flex items-center transition"><i
+                                class="fas fa-file-excel mr-1.5"></i> Import</button>
                         <button id="btnDeleteAll" onclick="app.deleteAllPeople()"
-                            class="hidden bg-white hover:bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i
+                            class="hidden whitespace-nowrap bg-white hover:bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-xs font-bold shadow-sm flex items-center transition"><i
                                 class="fas fa-trash-alt mr-1"></i> Xóa</button>
                         <button id="btnLock" onclick="app.toggleLockPlan()"
-                            class="hidden bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i
+                            class="hidden whitespace-nowrap bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-sm flex items-center transition"><i
                                 class="fas fa-lock"></i></button>
                         <button id="btnExport" onclick="exportManager.open()"
-                            class="hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i
+                            class="hidden whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-sm flex items-center transition"><i
                                 class="fas fa-file-word mr-1"></i> Xuất</button>
                         <button id="btnReport" onclick="reportManager.open()"
-                            class="hidden bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i
+                            class="hidden whitespace-nowrap bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-sm flex items-center transition"><i
                                 class="fas fa-chart-bar mr-1"></i> Báo cáo</button>
                         <button id="btnCleanup" onclick="cleanupManager.open()"
-                            class="hidden bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center transition"><i
-                                class="fas fa-broom mr-1"></i> Dọn dữ liệu</button>
+                            class="hidden whitespace-nowrap bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-sm flex items-center transition"><i
+                                class="fas fa-broom mr-1"></i> Dọn dẹp</button>
                     </div>
                 </div>
 
